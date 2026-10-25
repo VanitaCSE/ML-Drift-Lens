@@ -1,10 +1,25 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ml-drift-lens-frontend</title>
+    <meta name="description" content="Explore ML-Drift-Lens, a model monitoring and lifecycle visibility platform." />
+    <meta name="theme-color" content="#0b0f13" />
+    <title>ML-Drift-Lens | Model monitoring and lifecycle visibility</title>
+    <script>
+      (() => {
+        let savedTheme = null;
+        try {
+          savedTheme = localStorage.getItem('ml-drift-lens-theme');
+        } catch (error) {
+          console.warn('Unable to read the saved theme preference.', error);
+        }
+        const systemTheme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        document.documentElement.dataset.theme =
+          savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : systemTheme;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

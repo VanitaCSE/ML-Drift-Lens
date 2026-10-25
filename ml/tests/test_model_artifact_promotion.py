@@ -10,6 +10,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from ml.model.artifact_manifest import write_artifact_manifest
 from ml.model.artifact_promotion import promote_candidate_artifacts, rollback_promotion
 
 
@@ -35,13 +36,29 @@ def test_promote_candidate_materializes_matching_production_and_candidate_metada
     metadata = {
         "model_id": "test-model",
         "candidate_version": version,
+        "artifact_manifest_version": 1,
         "preprocessing_version": "preprocessing-v1",
+        "training_timestamp": "2026-10-01T00:00:00Z",
+        "sample_count": 150,
         "metrics": {"f1": 0.8},
+        "evaluation": {
+            "source": "verified-test-source",
+            "source_version": "v1",
+            "label_sources": ["trusted-fixture"],
+            "sample_count": 30,
+            "incumbent_metrics": {"f1": 0.5},
+        },
         "promoted": False,
     }
     candidate_path = candidates / f"{version}.joblib"
     joblib.dump(_payload(metadata), candidate_path)
     _write_json(candidate_path.with_suffix(".json"), metadata)
+    write_artifact_manifest(
+        candidate_path,
+        candidate_path.with_suffix(".manifest.json"),
+        f"candidates/{candidate_path.name}",
+        metadata,
+    )
 
     incumbent_metadata = {
         "model_id": "test-model",
@@ -71,23 +88,52 @@ def test_rollback_restores_candidate_and_incumbent_files_byte_for_byte(tmp_path:
     metadata = {
         "model_id": "test-model",
         "candidate_version": version,
+        "artifact_manifest_version": 1,
         "preprocessing_version": "preprocessing-v1",
+        "training_timestamp": "2026-10-01T00:00:00Z",
+        "sample_count": 150,
         "metrics": {"f1": 0.8},
+        "evaluation": {
+            "source": "verified-test-source",
+            "source_version": "v1",
+            "label_sources": ["trusted-fixture"],
+            "sample_count": 30,
+            "incumbent_metrics": {"f1": 0.5},
+        },
         "promoted": False,
     }
     candidate_path = candidates / f"{version}.joblib"
     joblib.dump(_payload(metadata), candidate_path)
     _write_json(candidate_path.with_suffix(".json"), metadata)
+    write_artifact_manifest(
+        candidate_path,
+        candidate_path.with_suffix(".manifest.json"),
+        f"candidates/{candidate_path.name}",
+        metadata,
+    )
     incumbent = {"model_id": "test-model", "model_version": "0.1.0", "preprocessing_version": "preprocessing-v1"}
     joblib.dump(_payload(incumbent), artifacts / "model.joblib")
     _write_json(artifacts / "metadata.json", incumbent)
-    paths = [candidate_path, candidate_path.with_suffix(".json"), artifacts / "model.joblib", artifacts / "metadata.json"]
-    original_bytes = [path.read_bytes() for path in paths]
+    paths = [
+        candidate_path,
+        candidate_path.with_suffix(".json"),
+        candidate_path.with_suffix(".manifest.json"),
+        artifacts / "model.joblib",
+        artifacts / "metadata.json",
+        artifacts / "manifest.json",
+    ]
+    original_state = [
+        (path.exists(), path.read_bytes() if path.is_file() else None)
+        for path in paths
+    ]
 
     result = promote_candidate_artifacts("test-model", version, artifacts)
     rollback_promotion(result["backup_token"], artifacts)
 
-    assert [path.read_bytes() for path in paths] == original_bytes
+    assert [
+        (path.exists(), path.read_bytes() if path.is_file() else None)
+        for path in paths
+    ] == original_state
 
 
 @pytest.mark.parametrize("version", ["../model.joblib", "..", "nested/candidate-1"])

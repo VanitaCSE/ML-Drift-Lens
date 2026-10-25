@@ -7,6 +7,8 @@ global.fetch = vi.fn();
 describe('API Client', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    apiClient.setCsrfToken(null);
+    apiClient.setAuthenticationFailureHandler(null);
   });
 
   it('should fetch model info successfully', async () => {
@@ -25,6 +27,9 @@ describe('API Client', () => {
 
     const result = await apiClient.getModelInfo();
     expect(result).toEqual(mockData);
+    expect(global.fetch).toHaveBeenCalledWith('/api/model-info', expect.objectContaining({
+      credentials: 'include',
+    }));
   });
 
   it('should fetch health status', async () => {
@@ -84,6 +89,51 @@ describe('API Client', () => {
     });
 
     expect(result).toEqual(mockData);
+    expect(global.fetch).toHaveBeenCalledWith('/api/predictions', expect.objectContaining({
+      credentials: 'include',
+    }));
+  });
+
+  it('restores a session and submits auth credentials only to the backend', async () => {
+    const session = {
+      authenticated: true,
+      user: { id: '1', email: 'user@example.test' },
+      csrfToken: 'csrf-token',
+    };
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => session,
+    });
+    expect(await apiClient.getCurrentSession()).toEqual(session);
+
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, user: session.user }),
+    });
+    await apiClient.login('user@example.test', 'test-password');
+    expect(global.fetch).toHaveBeenLastCalledWith('/api/auth/login', expect.objectContaining({
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ email: 'user@example.test', password: 'test-password' }),
+    }));
+  });
+
+  it('sends the restored CSRF token with protected prediction writes', async () => {
+    apiClient.setCsrfToken('session-csrf-token');
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true }),
+    });
+
+    await apiClient.predict({
+      model_id: 'test-model',
+      model_version: '0.1.0',
+      preprocessing_version: '0.1.0',
+      input_features: { duration: 100 },
+    });
+    const [, options] = (global.fetch as any).mock.calls.at(-1);
+    expect(options.credentials).toBe('include');
+    expect(new Headers(options.headers).get('X-CSRF-Token')).toBe('session-csrf-token');
   });
 
   it('should fetch prediction history', async () => {
@@ -136,5 +186,51 @@ describe('API Client', () => {
       preprocessing_version: 'preprocessing-v1',
       input_features: { service: 'private' },
     })).rejects.toThrow("Invalid prediction request: Prediction failed: Unknown category for feature 'service': private");
+  });
+
+  it('submits password reset and email verification requests', async () => {
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, message: 'Reset sent' }),
+    });
+    const forgotRes = await apiClient.requestPasswordReset('user@example.com');
+    expect(forgotRes.success).toBe(true);
+    expect(global.fetch).toHaveBeenCalledWith('/api/auth/forgot-password', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ email: 'user@example.com' }),
+    }));
+
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, message: 'Password reset' }),
+    });
+    const resetRes = await apiClient.resetPassword('token-123', 'new-password-123');
+    expect(resetRes.success).toBe(true);
+    expect(global.fetch).toHaveBeenCalledWith('/api/auth/reset-password', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ token: 'token-123', password: 'new-password-123' }),
+    }));
+
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, message: 'Email verified' }),
+    });
+    const verifyRes = await apiClient.verifyEmail('token-123');
+    expect(verifyRes.success).toBe(true);
+    expect(global.fetch).toHaveBeenCalledWith('/api/auth/verify-email', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ token: 'token-123' }),
+    }));
+
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, message: 'Verification resent' }),
+    });
+    const resendRes = await apiClient.resendVerification('user@example.com');
+    expect(resendRes.success).toBe(true);
+    expect(global.fetch).toHaveBeenCalledWith('/api/auth/resend-verification', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ email: 'user@example.com' }),
+    }));
   });
 });

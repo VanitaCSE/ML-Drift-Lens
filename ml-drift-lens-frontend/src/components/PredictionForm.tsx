@@ -24,12 +24,16 @@ export const PredictionForm: React.FC<PredictionFormProps> = ({
   const [resolvedModel, setResolvedModel] = useState({ modelId, modelVersion, preprocessingVersion });
   const [result, setResult] = useState<PredictionResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [modelInfoLoading, setModelInfoLoading] = useState(!(modelId && modelVersion && preprocessingVersion));
+  const [metadataRetry, setMetadataRetry] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     if (modelId && modelVersion && preprocessingVersion) return undefined;
 
+    setModelInfoLoading(true);
+    setError(null);
     apiClient.getModelInfo()
       .then((info) => {
         if (cancelled) return;
@@ -41,10 +45,13 @@ export const PredictionForm: React.FC<PredictionFormProps> = ({
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Unable to load active model metadata');
+      })
+      .finally(() => {
+        if (!cancelled) setModelInfoLoading(false);
       });
 
     return () => { cancelled = true; };
-  }, [modelId, modelVersion, preprocessingVersion]);
+  }, [modelId, modelVersion, preprocessingVersion, metadataRetry]);
 
   const activeModelId = modelId || resolvedModel.modelId;
   const activeModelVersion = modelVersion || resolvedModel.modelVersion;
@@ -131,30 +138,130 @@ export const PredictionForm: React.FC<PredictionFormProps> = ({
   };
 
   return (
-    <div className="card">
-      <h2>Network Intrusion Prediction</h2>
+    <div className="page-shell page-shell-tight">
+      <div className="page-header-row align-start">
+        <div>
+          <p className="eyebrow">Inference &amp; Scoring</p>
+          <h2>Network Intrusion Prediction</h2>
+          <p className="page-description">
+            Submit sample network telemetry to test real-time intrusion detection models and benchmark inference latency.
+          </p>
+        </div>
+        {canPredict && (
+          <div className="header-meta-badge">
+            <span className="meta-badge-label">Active Model:</span>
+            <span className="meta-badge-value mono">{activeModelVersion}</span>
+          </div>
+        )}
+      </div>
 
-      <div className="prediction-section">
-        <p className="description">
-          Click "Predict" to submit a sample network connection record for analysis.
-        </p>
+      <div className="panel-section prediction-form-section">
+        <div className="section-head">
+          <div>
+            <h3>Sample Connection Telemetry</h3>
+            <p className="section-description">
+              Benchmark record extracted from the NSL-KDD test holdout (KDDTest+ row 6). Ground-truth label is excluded from submission.
+            </p>
+          </div>
+        </div>
 
-        <button
-          onClick={handlePredict}
-          disabled={loading || !canPredict}
-          className="btn btn-primary"
-        >
-          {loading ? 'Predicting...' : canPredict ? 'Predict' : 'Loading model...'}
-        </button>
+        <div className="telemetry-features-grid">
+          <div className="telemetry-feature-chip">
+            <span className="feature-label">Protocol</span>
+            <span className="feature-value">{features.protocol_type.toUpperCase()}</span>
+          </div>
+          <div className="telemetry-feature-chip">
+            <span className="feature-label">Service</span>
+            <span className="feature-value">{features.service}</span>
+          </div>
+          <div className="telemetry-feature-chip">
+            <span className="feature-label">Status Flag</span>
+            <span className="feature-value">{features.flag}</span>
+          </div>
+          <div className="telemetry-feature-chip">
+            <span className="feature-label">Src Payload</span>
+            <span className="feature-value">{features.src_bytes} B</span>
+          </div>
+          <div className="telemetry-feature-chip">
+            <span className="feature-label">Dst Payload</span>
+            <span className="feature-value">{features.dst_bytes.toLocaleString()} B</span>
+          </div>
+          <div className="telemetry-feature-chip">
+            <span className="feature-label">Logged In</span>
+            <span className="feature-value">{features.logged_in === 1 ? 'Yes' : 'No'}</span>
+          </div>
+          <div className="telemetry-feature-chip">
+            <span className="feature-label">Connections</span>
+            <span className="feature-value">{features.count} (same srv: 100%)</span>
+          </div>
+          <div className="telemetry-feature-chip">
+            <span className="feature-label">Total Features</span>
+            <span className="feature-value">41 attributes</span>
+          </div>
+        </div>
+
+        <div className="prediction-actions-bar">
+          <button
+            onClick={handlePredict}
+            disabled={loading || !canPredict}
+            className="btn btn-primary"
+          >
+            {loading ? 'Predicting...' : canPredict ? 'Predict' : modelInfoLoading ? 'Loading model...' : 'Model unavailable'}
+          </button>
+
+          {modelInfoLoading && !canPredict && (
+            <p role="status" aria-live="polite" className="status-note">
+              Loading active model metadata...
+            </p>
+          )}
+
+          {!canPredict && !modelInfoLoading && (
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => {
+                setError(null);
+                setModelInfoLoading(true);
+                setMetadataRetry((attempt) => attempt + 1);
+              }}
+            >
+              Retry model metadata
+            </button>
+          )}
+        </div>
 
         {error && (
-          <div className="error-box">
+          <div className="error-box" role="alert">
             <strong>Error:</strong> {error}
           </div>
         )}
+      </div>
 
-        {result && (
-          <div className="result-box">
+      {result && (
+        <div className="panel-section result-box">
+          <div className="section-head">
+            <h3>Inference Result</h3>
+          </div>
+
+          <div className={`result-banner ${result.prediction.toLowerCase()}`}>
+            <div className="result-banner-icon" aria-hidden="true">
+              {result.prediction.toLowerCase() === 'normal' ? '✓' : '⚠'}
+            </div>
+            <div className="result-banner-content">
+              <h4>
+                {result.prediction.toLowerCase() === 'normal'
+                  ? 'BENIGN TRAFFIC (NORMAL)'
+                  : 'NETWORK INTRUSION DETECTED (ATTACK)'}
+              </h4>
+              <p>
+                {result.prediction.toLowerCase() === 'normal'
+                  ? 'Connection patterns align with baseline legitimate network operations. No anomalous traffic characteristics detected.'
+                  : 'Connection features matched signature patterns associated with unauthorized or malicious network activity.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="prediction-metrics-grid">
             <div className="result-item">
               <label>Prediction</label>
               <span className={`prediction-badge prediction-${result.prediction.toLowerCase()}`}>
@@ -162,10 +269,22 @@ export const PredictionForm: React.FC<PredictionFormProps> = ({
               </span>
             </div>
             <div className="result-item">
+              <label>Prediction Class</label>
+              <span title="Binary target class: 0 = normal (benign traffic), 1 = attack (network intrusion)">
+                <code>{result.prediction_class}</code> ({result.prediction_class === 0 ? 'normal' : 'attack'})
+              </span>
+            </div>
+            <div className="result-item">
               <label>Confidence</label>
               <span className="confidence-value">
                 {(result.confidence * 100).toFixed(1)}%
               </span>
+              <div className="confidence-meter-track" aria-hidden="true">
+                <div
+                  className="confidence-meter-fill"
+                  style={{ width: `${Math.min(100, Math.max(0, result.confidence * 100))}%` }}
+                />
+              </div>
             </div>
             <div className="result-item">
               <label>Inference Latency</label>
@@ -173,15 +292,16 @@ export const PredictionForm: React.FC<PredictionFormProps> = ({
             </div>
             <div className="result-item">
               <label>Model Version</label>
-              <span>{result.model_version}</span>
-            </div>
-            <div className="result-item">
-              <label>Request ID</label>
-              <span className="request-id">{result.request_id}</span>
+              <span className="model-version-tag">{result.model_version}</span>
             </div>
           </div>
-        )}
-      </div>
+
+          <div className="result-item request-id-container">
+            <label>Request ID</label>
+            <span className="request-id">{result.request_id}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,6 +1,6 @@
 # NID ModelWatch - React Frontend
 
-This is the Phase 7 React frontend for the Network Intrusion Detection (NID) ModelWatch project.
+This is the React frontend for the ML-Drift-Lens model monitoring application.
 
 ## Overview
 
@@ -14,8 +14,8 @@ The frontend provides a simple dashboard to:
 
 ```
 React Frontend (Port 5173)
-    ↓ 
-Node.js Backend API (Port 3000) 
+    ↓ same-origin /api requests through the Vite development proxy
+Node.js/Express Backend API (native default port 3000; Compose default host port 23000)
     ↓
 FastAPI ML Service (Port 8000)
     ↓
@@ -38,13 +38,14 @@ npm install
 
 ### Configuration
 
-Create or update `.env.local`:
+For local development, leave `VITE_API_URL` empty so browser requests use the same-origin `/api` path. Configure the Vite proxy upstream separately:
 
-```
-VITE_API_URL=http://localhost:3000
+```dotenv
+VITE_API_URL=
+VITE_API_PROXY_TARGET=http://localhost:3000
 ```
 
-(Alternatively, update the default in `vite.config.ts`)
+The native backend defaults to `http://localhost:3000`. The repository's Docker Compose setup publishes its backend at `http://localhost:23000` by default; when using that stack, set `VITE_API_PROXY_TARGET=http://localhost:23000`. The proxy avoids browser CORS requests to the backend. Use `VITE_API_URL` only when a browser-direct API origin is intentionally configured and its CORS policy permits the frontend origin.
 
 ### Development
 
@@ -190,7 +191,8 @@ server {
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| VITE_API_URL | http://localhost:3000 | Node backend API URL |
+| VITE_API_URL | empty | Optional browser-direct API origin; leave empty to use the Vite proxy |
+| VITE_API_PROXY_TARGET | http://localhost:3000 | Vite development proxy upstream; use port 23000 for the default Compose backend |
 
 ## File Structure
 
@@ -223,10 +225,10 @@ ml-drift-lens-frontend/
 
 ### Backend not accessible
 
-1. Check Node backend is running on port 3000
-2. Check VITE_API_URL in .env.local
-3. Verify CORS is enabled on backend
-4. Check browser console for network errors
+1. Check the intended Express backend is running and responding at `/api/health`.
+2. Confirm `VITE_API_URL` is empty for proxied development requests.
+3. Confirm `VITE_API_PROXY_TARGET` points to the selected backend (native default port 3000 or Compose default host port 23000).
+4. Check the browser console and Vite terminal for `/api` proxy connection errors.
 
 ### ML service unavailable
 

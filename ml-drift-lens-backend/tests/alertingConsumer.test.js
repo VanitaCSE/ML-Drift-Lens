@@ -92,7 +92,7 @@ test("consumes valid events and handles Redis failures safely", async () => {
     xReadGroup: async () => { throw new Error("Redis unavailable"); },
   }, pool);
 
-  assert.deepEqual(consumed, { consumed: 1, created: 1, failed: 0 });
+  assert.deepEqual(consumed, { consumed: 1, created: 1, failed: 0, recoveryError: null });
   assert.equal(retrainingCalls, 1);
   assert.equal(unavailable.reason, "Redis unavailable");
 });
@@ -156,4 +156,46 @@ test("reports retraining failures without acknowledging the Redis event", async 
 
   assert.equal(result.failed, 1);
   assert.equal(acknowledgements, 0);
+});
+
+test("keeps malformed drift messages pending instead of acknowledging them", async () => {
+  let acknowledgements = 0;
+  const client = {
+    xGroupCreate: async () => {},
+    xReadGroup: async () => [{ messages: [{
+      id: "5-0",
+      message: { ...validEvent()[1], drift_score_id: "invalid" },
+    }] }],
+    xAck: async () => { acknowledgements += 1; },
+  };
+
+  const result = await consumeDriftEventsOnce(client, { query: async () => ({ rows: [] }) });
+
+  assert.equal(result.failed, 1);
+  assert.equal(acknowledgements, 0);
+});
+
+test("reports pending-message recovery failures while still processing new events", async () => {
+  const originalWarn = console.warn;
+  const warnings = [];
+  console.warn = (...args) => warnings.push(args);
+  try {
+    const client = {
+      xGroupCreate: async () => {},
+      xReadGroup: async () => [{ messages: [] }],
+      xAutoClaim: async () => {
+        throw Object.assign(new Error("private details must not be logged"), {
+          code: "REDIS_DOWN",
+        });
+      },
+    };
+
+    const result = await consumeDriftEventsOnce(client, { query: async () => ({ rows: [] }) });
+
+    assert.equal(result.consumed, 0);
+    assert.deepEqual(result.recoveryError, { code: "REDIS_DOWN", name: "Error" });
+    assert.equal(JSON.stringify(warnings).includes("private details"), false);
+  } finally {
+    console.warn = originalWarn;
+  }
 });

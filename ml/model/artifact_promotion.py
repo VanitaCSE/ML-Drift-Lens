@@ -14,6 +14,8 @@ from uuid import uuid4
 
 import joblib
 
+from .artifact_manifest import verify_artifact_manifest, write_artifact_manifest
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BACKUP_TOKEN_PATTERN = re.compile(r"^[0-9a-f]{32}$")
@@ -83,8 +85,10 @@ def rollback_promotion(backup_token: str, artifacts_root: Path | None = None) ->
     targets = {
         "production.joblib": root / "model.joblib",
         "production.json": root / "metadata.json",
+        "production.manifest.json": root / "manifest.json",
         "candidate.joblib": root / "candidates" / f"{candidate_version}.joblib",
         "candidate.json": root / "candidates" / f"{candidate_version}.json",
+        "candidate.manifest.json": root / "candidates" / f"{candidate_version}.manifest.json",
     }
     for name, destination in targets.items():
         source = backup_dir / name if manifest.get(name) else None
@@ -124,6 +128,16 @@ def promote_candidate_artifacts(
         raise FileNotFoundError("Candidate artifact or metadata is missing")
 
     candidate_metadata = json.loads(candidate_metadata_path.read_text(encoding="utf-8"))
+    candidate_manifest_path = candidate_path.with_suffix(".manifest.json")
+    try:
+        verify_artifact_manifest(
+            candidate_path,
+            candidate_manifest_path,
+            f"candidates/{candidate_path.name}",
+            candidate_metadata,
+        )
+    except ValueError as exc:
+        raise ValueError(f"Candidate artifact manifest is invalid: {exc}") from exc
     payload = joblib.load(candidate_path)
     if not isinstance(payload, dict) or not isinstance(payload.get("metadata"), dict):
         raise ValueError("Candidate artifact payload is invalid")
@@ -153,11 +167,14 @@ def promote_candidate_artifacts(
     files = {
         "production.joblib": production_path,
         "production.json": production_metadata_path,
+        "production.manifest.json": root / "manifest.json",
         "candidate.joblib": candidate_dir / "candidate.joblib",
         "candidate.json": candidate_dir / "candidate.json",
+        "candidate.manifest.json": candidate_dir / "candidate.manifest.json",
     }
     files["candidate.joblib"] = candidate_path
     files["candidate.json"] = candidate_metadata_path
+    files["candidate.manifest.json"] = candidate_manifest_path
     _backup_files(backup_dir, files)
     manifest_path = backup_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -170,10 +187,22 @@ def promote_candidate_artifacts(
             candidate_metadata_path,
             (json.dumps(promoted_metadata, indent=2) + "\n").encode("utf-8"),
         )
-        _atomic_joblib(production_path, promoted_payload)
+        _atomic_bytes(production_path, candidate_path.read_bytes())
         _atomic_bytes(
             production_metadata_path,
             (json.dumps(promoted_metadata, indent=2) + "\n").encode("utf-8"),
+        )
+        write_artifact_manifest(
+            candidate_path,
+            candidate_manifest_path,
+            f"candidates/{candidate_path.name}",
+            promoted_metadata,
+        )
+        write_artifact_manifest(
+            production_path,
+            root / "manifest.json",
+            production_path.name,
+            promoted_metadata,
         )
     except Exception:
         rollback_promotion(token, root)

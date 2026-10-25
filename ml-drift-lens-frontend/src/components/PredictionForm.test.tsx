@@ -35,4 +35,27 @@ describe('PredictionForm', () => {
     });
     expect(screen.queryByText('Attack')).toBeNull();
   });
+
+  it('allows retry after active model metadata is unavailable', async () => {
+    vi.mocked(apiClient.getModelInfo)
+      .mockRejectedValueOnce(new Error('Backend unavailable'))
+      .mockResolvedValueOnce({
+        model_id: 'nsl-kdd-baseline',
+        model_version: 'candidate-1',
+        preprocessing_version: 'preprocessing-v1',
+        model_type: 'classifier',
+        num_features: 41,
+        training_timestamp: '2026-10-09T00:00:00Z',
+      });
+
+    render(<PredictionForm />);
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Backend unavailable');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry model metadata' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Predict' }).hasAttribute('disabled')).toBe(false);
+    });
+    expect(apiClient.getModelInfo).toHaveBeenCalledTimes(2);
+  });
 });

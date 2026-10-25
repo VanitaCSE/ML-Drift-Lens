@@ -106,6 +106,7 @@ services:
       context: .
       dockerfile: ml-drift-lens-backend/Dockerfile
     environment:
+      NODE_ENV: ${NODE_ENV:-development}
       HOST: 0.0.0.0
       PORT: 3000
       DB_USER: ${POSTGRES_USER:-postgres}
@@ -113,6 +114,10 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: ${POSTGRES_DB:-ml_drift_lens}
+      DATABASE_URL: ${DATABASE_URL:-}
+      DATABASE_SSL: ${DATABASE_SSL:-false}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       REDIS_URL: redis://redis:6379
       ML_SERVICE_URL: http://inference:8000
       ML_SERVICE_TIMEOUT: ${ML_SERVICE_TIMEOUT:-15000}
@@ -120,6 +125,10 @@ services:
       MLFLOW_EXPERIMENT_NAME: ${MLFLOW_EXPERIMENT_NAME:-ModelWatch-IDS-Docker}
       MLFLOW_REGISTERED_MODEL_NAME: ${MLFLOW_REGISTERED_MODEL_NAME:-ModelWatch-IDS-Baseline}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:25173,http://127.0.0.1:25173}
+      VERIFIED_LABEL_SOURCE_ALLOWLIST: ${VERIFIED_LABEL_SOURCE_ALLOWLIST:-}
+      RENDER_TARGET_ENVIRONMENT: ${RENDER_TARGET_ENVIRONMENT:-}
+      RENDER_STAGING_SERVICE_ID: ${RENDER_STAGING_SERVICE_ID:-}
+      RENDER_API_KEY: ${RENDER_API_KEY:-}
     volumes:
       - model_artifacts:/app/ml/artifacts
       - ./ml/data/raw:/app/ml/data/raw:ro

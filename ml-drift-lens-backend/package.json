@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
+    "migrate": "node scripts/applyAllMigrations.js",
+    "migrate:auth": "node scripts/applyAuthMigration.js",
     "test": "node --test tests/*.test.js"
   },
   "keywords": [],
@@ -13,10 +15,15 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "argon2": "^0.45.1",
+    "connect-pg-simple": "^10.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.1",
+    "express-session": "^1.19.0",
     "express-validator": "^7.3.2",
+    "jose": "^6.1.0",
     "pg": "^8.22.0",
     "redis": "^6.2.1"
   },

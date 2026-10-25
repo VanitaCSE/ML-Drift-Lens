@@ -244,6 +244,30 @@ describe('Dashboard', () => {
     expect(screen.getAllByRole('button', { name: 'Retry' }).length).toBeGreaterThan(0);
   });
 
+  it('explains the binary prediction class mapping with legend and descriptive label', async () => {
+    mockedApiClient.getPredictionHistory.mockResolvedValue([
+      {
+        id: 101,
+        model_id: 'nsl-kdd-baseline',
+        model_version: 'v1.0',
+        preprocessing_version: 'v1',
+        input_features: '{}',
+        prediction: 'normal',
+        prediction_class: 0,
+        confidence: 0.99,
+        request_id: 'req-normal',
+        timestamp: '2026-10-25T12:00:00Z',
+        actual_label: undefined,
+      },
+    ]);
+
+    render(<Dashboard />);
+    await waitFor(() => expect(screen.getByText('req-normal')).toBeTruthy());
+    expect(screen.getAllByText('0').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('(normal)')).toBeTruthy();
+    expect(screen.getByText(/Class mapping legend:/)).toBeTruthy();
+  });
+
   it('keeps other sections available when one read API fails', async () => {
     mockedApiClient.getAlerts.mockRejectedValue(new Error('alerts unavailable'));
     render(<Dashboard />);

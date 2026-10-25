@@ -5,6 +5,7 @@
  */
 
 const http = require("http");
+const https = require("https");
 
 const DEFAULT_ML_SERVICE_URL = "http://localhost:8000";
 
@@ -63,7 +64,8 @@ function makeMLServiceRequest(method, path, data = null) {
         "Content-Type": "application/json",
       };
 
-      const req = http.request(options, (res) => {
+      const transport = options.protocol === "https:" ? https : http;
+      const req = transport.request(options, (res) => {
         let responseBody = "";
 
         res.on("data", (chunk) => {

@@ -13,6 +13,7 @@ function parseCorsOrigins(value = process.env.CORS_ORIGINS) {
 
 function createCorsOptions(allowedOrigins = parseCorsOrigins()) {
   return {
+    credentials: true,
     origin(origin, callback) {
       callback(null, !origin || allowedOrigins.has(origin));
     },

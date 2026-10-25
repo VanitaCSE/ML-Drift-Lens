@@ -11,6 +11,8 @@ import joblib
 import pandas as pd
 from sklearn.pipeline import Pipeline
 
+from ..model.artifact_manifest import verify_artifact_manifest
+
 logger = logging.getLogger(__name__)
 
 
@@ -75,6 +77,28 @@ class ModelLoader:
             raise ModelArtifactError("Production and candidate metadata do not match")
         if not artifact_path.is_relative_to(self.production_root.resolve(strict=False)):
             raise ModelArtifactError("Served model is outside the production artifact root")
+        manifest_version = metadata.get("artifact_manifest_version")
+        if manifest_version is None:
+            return
+        if manifest_version != 1:
+            raise ModelArtifactError("Unsupported production artifact manifest version")
+        try:
+            production_manifest = verify_artifact_manifest(
+                artifact_path,
+                artifact_path.with_name("manifest.json"),
+                artifact_path.name,
+                metadata,
+            )
+            candidate_manifest = verify_artifact_manifest(
+                self.production_root / "candidates" / f"{candidate_version}.joblib",
+                self.production_root / "candidates" / f"{candidate_version}.manifest.json",
+                f"candidates/{candidate_version}.joblib",
+                candidate_metadata,
+            )
+            if production_manifest["artifact_sha256"] != candidate_manifest["artifact_sha256"]:
+                raise ValueError("Production and candidate artifact checksums differ")
+        except (OSError, ValueError) as exc:
+            raise ModelArtifactError(f"Production artifact manifest verification failed: {exc}") from exc
 
     def _contract_feature_names(self, contract: dict[str, Any]) -> list[str]:
         """Return feature names as defined by the contract."""

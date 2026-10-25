@@ -75,6 +75,10 @@ function retrainingStatus(row: RetrainingJobRecord) {
   return EMPTY_VALUE;
 }
 
+function retrainingStage(row: RetrainingJobRecord) {
+  return normalizeStatus(row.status || (row.promoted ? 'candidate_ready' : 'queued'));
+}
+
 function driftStatusTone(status: string | null | undefined, isAboveThreshold: boolean): StatusBadgeProps['tone'] {
   const normalized = status?.toLowerCase();
   if (normalized === 'insufficient_data') return 'neutral';
@@ -113,7 +117,7 @@ function getValidDriftPoints(history: DriftScore[]) {
       scoreValue: Number(item.score),
       thresholdValue: Number(item.threshold),
     }))
-    .filter((item) => Number.isFinite(item.timestampValue) && Number.isFinite(item.scoreValue) && Number.isFinite(item.thresholdValue))
+    .filter((item) => item.status !== 'insufficient_data' && Number.isFinite(item.timestampValue) && Number.isFinite(item.scoreValue) && Number.isFinite(item.thresholdValue))
     .sort((left, right) => left.timestampValue - right.timestampValue);
 }
 
@@ -147,7 +151,7 @@ function StatusBadge({ children, tone = 'neutral' }: StatusBadgeProps) {
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="dashboard-empty-state">
+    <div className="dashboard-empty-state" role="status">
       <span className="empty-state-icon">◌</span>
       <strong>{message}</strong>
     </div>
@@ -168,36 +172,50 @@ function DataTable<T>({ columns, rows, emptyMessage }: { columns: TableColumn<T>
 }
 
 function SectionState({ loading, error, onRetry, children }: { loading: boolean; error?: string; onRetry: () => void; children: ReactNode }) {
-  if (loading) return <div className="dashboard-inline-loading">Loading section...</div>;
+  if (loading) return <div className="dashboard-inline-loading" role="status" aria-live="polite">Loading section...</div>;
   if (error) {
-    return <div className="dashboard-section-error"><strong>Unable to load this section.</strong><span>{error}</span><button className="btn btn-secondary" type="button" onClick={onRetry}>Retry</button></div>;
+    return <div className="dashboard-section-error" role="alert"><strong>Unable to load this section.</strong><span>{error}</span><button className="btn btn-secondary" type="button" onClick={onRetry}>Retry</button></div>;
   }
   return <>{children}</>;
 }
 
 function DriftPanel({ history, loading, error, onRetry }: { history: DriftScore[]; loading: boolean; error?: string; onRetry: () => void }) {
   const points = getValidDriftPoints(history);
-  const latest = points[points.length - 1];
+  const latestRecord = history
+    .filter((item) => Number.isFinite(new Date(item.timestamp).getTime()))
+    .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())[0];
+  const latestHasScore = latestRecord?.status !== 'insufficient_data'
+    && latestRecord !== undefined
+    && Number.isFinite(Number(latestRecord.score))
+    && Number.isFinite(Number(latestRecord.threshold));
+  const latestExceedsThreshold = latestHasScore && Number(latestRecord.score) > Number(latestRecord.threshold);
   return (
     <SectionCard title="Drift monitoring" eyebrow="Distribution health" className="drift-section">
       <SectionState loading={loading} error={error} onRetry={onRetry}>
         <div className="drift-summary-grid">
-          <div><span>Latest drift score</span><strong>{latest ? formatNumber(latest.scoreValue) : EMPTY_VALUE}</strong></div>
-          <div><span>Drift threshold</span><strong>{latest ? formatNumber(latest.thresholdValue) : EMPTY_VALUE}</strong></div>
-          <div><span>Latest status</span><StatusBadge tone={latest ? driftStatusTone(latest.status, latest.scoreValue > latest.thresholdValue) : 'neutral'}>{latest ? normalizeStatus(latest.status) : 'Insufficient data'}</StatusBadge></div>
+          <div><span>Latest drift score</span><strong>{latestHasScore ? formatNumber(Number(latestRecord.score)) : EMPTY_VALUE}</strong></div>
+          <div><span>Drift threshold</span><strong>{latestHasScore ? formatNumber(Number(latestRecord.threshold)) : EMPTY_VALUE}</strong></div>
+          <div><span>Latest status</span><StatusBadge tone={latestRecord ? driftStatusTone(latestRecord.status, latestExceedsThreshold) : 'neutral'}>{latestRecord ? normalizeStatus(latestRecord.status) : 'No records'}</StatusBadge></div>
         </div>
-        {history.length === 0 ? <EmptyState message="No drift history available" /> : points.length === 0 ? <EmptyState message="No valid drift records available" /> : (
+        {history.length === 0 ? <EmptyState message="No drift history available" /> : points.length === 0 ? <EmptyState message={history.some((record) => record.status === 'insufficient_data') ? 'Insufficient data to calculate a drift score' : 'No valid drift records available'} /> : (
           <div className="drift-chart" aria-label="Drift history chart showing score and configured threshold over time">
             <h4 className="sr-only">Drift score and threshold over time</h4>
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={points} margin={{ top: 10, right: 18, left: 8, bottom: 8 }}>
-                <CartesianGrid stroke="rgba(145, 160, 179, 0.16)" strokeDasharray="3 3" />
-                <XAxis dataKey="timestamp" tickFormatter={formatTimestamp} stroke="#9aa8bb" tick={{ fontSize: 11 }} />
-                <YAxis label={{ value: 'Drift score', angle: -90, position: 'insideLeft', fill: '#9aa8bb', fontSize: 11 }} stroke="#9aa8bb" tick={{ fontSize: 11 }} />
-                <Tooltip labelFormatter={(label) => formatTimestamp(String(label))} contentStyle={{ background: '#111b27', border: '1px solid rgba(145, 160, 179, 0.3)', color: '#edf3ff' }} />
+                <CartesianGrid stroke="var(--color-chart-grid)" strokeDasharray="3 3" />
+                <XAxis dataKey="timestamp" tickFormatter={formatTimestamp} stroke="var(--color-chart-axis)" tick={{ fontSize: 11 }} />
+                <YAxis label={{ value: 'Drift score', angle: -90, position: 'insideLeft', fill: 'var(--color-chart-axis)', fontSize: 11 }} stroke="var(--color-chart-axis)" tick={{ fontSize: 11 }} />
+                <Tooltip
+                  labelFormatter={(label) => formatTimestamp(String(label))}
+                  contentStyle={{
+                    background: 'var(--color-chart-tooltip)',
+                    border: '1px solid var(--color-chart-tooltip-border)',
+                    color: 'var(--color-text-primary)',
+                  }}
+                />
                 <Legend />
-                <Line type="monotone" dataKey="scoreValue" name="Drift score" stroke="#8b6cf6" strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
-                <Line type="monotone" dataKey="thresholdValue" name="Threshold" stroke="#f5b942" strokeWidth={2} strokeDasharray="5 5" dot={false} connectNulls={false} />
+                <Line type="monotone" dataKey="scoreValue" name="Drift score" stroke="var(--color-chart-series-1)" strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
+                <Line type="monotone" dataKey="thresholdValue" name="Threshold" stroke="var(--color-chart-series-2)" strokeWidth={2} strokeDasharray="5 5" dot={false} connectNulls={false} />
               </LineChart>
             </ResponsiveContainer>
             <p className="chart-accessible-summary">{points.length} valid drift readings from {formatTimestamp(points[0].timestamp)} to {formatTimestamp(points[points.length - 1].timestamp)}. Drift score is shown against the configured threshold.</p>
@@ -248,19 +266,28 @@ function RetrainingPanel({ rows, loading, error, onRetry }: { rows: RetrainingJo
         <DataTable columns={[
           { key: 'job', label: 'Job ID', render: (row) => formatNumber(row.id) },
           { key: 'model', label: 'Model ID', render: (row) => safeValue(row.model_id) },
+          { key: 'stage', label: 'Current stage', render: (row) => <StatusBadge>{retrainingStage(row)}</StatusBadge> },
+          { key: 'reason', label: 'Trigger reason', render: (row) => normalizeStatus(row.trigger_reason || row.triggered_by) },
           { key: 'old', label: 'Old version', render: (row) => safeValue(row.old_model_version) },
           { key: 'new', label: 'New version', render: (row) => safeValue(row.new_model_version) },
-          { key: 'triggered', label: 'Triggered by', render: (row) => normalizeStatus(row.triggered_by) },
           { key: 'started', label: 'Started', render: (row) => formatTimestamp(row.start_time) },
+          { key: 'updated', label: 'Last updated', render: (row) => formatTimestamp(row.updated_at) },
+          { key: 'samples', label: 'Verified labels / evaluation', render: (row) => `${formatNumber(row.sample_count)} / ${formatNumber(row.evaluation_sample_count)} (min ${formatNumber(row.min_samples)})` },
           { key: 'ended', label: 'Ended', render: (row) => formatTimestamp(row.end_time) },
           { key: 'promoted', label: 'Promotion status', render: (row) => <StatusBadge tone={row.promoted ? 'success' : 'neutral'}>{retrainingStatus(row)}</StatusBadge> },
           { key: 'candidate-f1', label: 'Candidate F1', render: (row) => formatPercentage(row.candidate_f1) },
           { key: 'incumbent-f1', label: 'Incumbent F1', render: (row) => formatPercentage(row.incumbent_f1) },
-          { key: 'reason', label: 'Promotion detail', render: (row) => normalizeStatus(row.promotion_reason) },
+          { key: 'promotion-reason', label: 'Promotion detail', render: (row) => normalizeStatus(row.promotion_reason) },
           { key: 'reload', label: 'Reload status', render: (row) => <StatusBadge>{row.reload_status ? normalizeStatus(row.reload_status) : 'Not available'}</StatusBadge> },
         ]} rows={rows} emptyMessage="No retraining jobs available" />
       </SectionState>
-      <p className="dashboard-table-note">Rejected and pending states are not persisted by the current backend response; unavailable values remain N/A.</p>
+      {rows.some((row) => row.error_message) && (
+        <ul className="dashboard-table-note">
+          {rows.filter((row) => row.error_message).map((row) => (
+            <li key={row.id}>Job {row.id}: {row.error_message}</li>
+          ))}
+        </ul>
+      )}
     </SectionCard>
   );
 }
@@ -274,12 +301,29 @@ function PredictionsPanel({ rows, loading, error, onRetry }: { rows: PredictionH
           { key: 'request', label: 'Request ID', render: (row) => safeValue(row.request_id) },
           { key: 'version', label: 'Model version', render: (row) => safeValue(row.model_version) },
           { key: 'predicted', label: 'Predicted label', render: (row) => safeValue(row.prediction) },
-          { key: 'class', label: 'Prediction class', render: (row) => formatNumber(row.prediction_class) },
+          {
+            key: 'class',
+            label: 'Prediction class',
+            render: (row) => (
+              <span
+                className="prediction-class-cell"
+                title={`Binary target class ${row.prediction_class}: ${row.prediction_class === 0 ? 'normal (benign traffic)' : row.prediction_class === 1 ? 'attack (intrusion)' : 'unknown'}`}
+              >
+                <code>{formatNumber(row.prediction_class)}</code>{' '}
+                <span className="class-label-tag" style={{ fontSize: '0.825em', opacity: 0.85 }}>
+                  ({row.prediction_class === 0 ? 'normal' : row.prediction_class === 1 ? 'attack' : 'N/A'})
+                </span>
+              </span>
+            ),
+          },
           { key: 'confidence', label: 'Confidence', render: (row) => formatPercentage(row.confidence) },
           { key: 'latency', label: 'Inference latency (ms)', render: (row) => formatNumber(row.inference_latency_ms) },
           { key: 'actual', label: 'Actual label', render: (row) => safeValue(row.actual_label) },
           { key: 'timestamp', label: 'Timestamp', render: (row) => formatTimestamp(row.timestamp) },
         ]} rows={rows} emptyMessage="No predictions available" />
+        <p className="dashboard-table-note" style={{ marginTop: '10px', fontSize: '0.825rem', color: 'var(--color-text-muted)' }}>
+          ℹ <strong>Class mapping legend:</strong> <code>0 = normal</code> (benign network traffic), <code>1 = attack</code> (network intrusion). In NSL-KDD binary classification, 0 is the negative baseline class and 1 is the positive attack class.
+        </p>
       </SectionState>
     </SectionCard>
   );

@@ -7,6 +7,7 @@ const retrainingController = require("../controllers/retrainingController");
 
 const CONSUMER_GROUP = "modelwatch-alerting";
 const CONSUMER_NAME = "alerting-service";
+const PENDING_IDLE_THRESHOLD_MS = 30 * 60 * 1000;
 
 function normalizeStreamFields(fields) {
   if (fields && typeof fields === "object" && !Array.isArray(fields)) {
@@ -113,16 +114,43 @@ async function consumeDriftEventsOnce(clientOverride = null, poolOverride = pool
       { COUNT: 10, BLOCK: 1 },
     );
     const messages = entries?.[0]?.messages || [];
+
+    let claimedMessages = [];
+    let recoveryError = null;
+    if (typeof client.xAutoClaim === "function") {
+      try {
+        const claimed = await client.xAutoClaim(
+          STREAM_NAME,
+          CONSUMER_GROUP,
+          CONSUMER_NAME,
+          PENDING_IDLE_THRESHOLD_MS,
+          "0",
+          { COUNT: 10 },
+        );
+        claimedMessages = claimed?.messages || [];
+      } catch (error) {
+        recoveryError = {
+          code: error.code || null,
+          name: error.name || "Error",
+        };
+        console.warn("Redis pending drift-message recovery failed", recoveryError);
+      }
+    }
+
+    const allMessages = [...messages, ...claimedMessages];
     let created = 0;
     let failed = 0;
 
-    for (const message of messages) {
+    for (const message of allMessages) {
       try {
+        const parsed = parseDriftEvent([message.id, message.message]);
+        if (!parsed.valid && !parsed.ignored) {
+          throw new Error(parsed.reason || "Malformed drift event");
+        }
         const result = await createAlertFromDriftEvent(
           [message.id, message.message],
           poolOverride,
         );
-        const parsed = parseDriftEvent([message.id, message.message]);
         if (result.created || result.duplicate) {
           const existingJob = await poolOverride.query(
             "SELECT id FROM retraining_jobs WHERE drift_score_id = $1 LIMIT 1",
@@ -144,10 +172,15 @@ async function consumeDriftEventsOnce(clientOverride = null, poolOverride = pool
         }
       } catch (error) {
         failed += 1;
+        console.error("Drift stream message processing failed", {
+          message_id: message.id,
+          code: error.code || null,
+          name: error.name || "Error",
+        });
       }
     }
 
-    return { consumed: messages.length, created, failed };
+    return { consumed: allMessages.length, created, failed, recoveryError };
   } catch (error) {
     return { consumed: 0, created: 0, failed: 0, reason: error.message };
   } finally {
@@ -160,6 +193,7 @@ async function consumeDriftEventsOnce(clientOverride = null, poolOverride = pool
 module.exports = {
   CONSUMER_GROUP,
   CONSUMER_NAME,
+  PENDING_IDLE_THRESHOLD_MS,
   normalizeStreamFields,
   parseDriftEvent,
   buildAlertMessage,

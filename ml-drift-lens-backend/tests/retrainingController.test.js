@@ -46,9 +46,29 @@ function createCandidate(version, f1, { modelId = "nsl-kdd-baseline", promoted =
   const metadata = {
     model_id: modelId,
     candidate_version: version,
+    old_model_version: "0.1.0",
+    feature_schema_version: "1.0.0",
     mlflow_run_id: "unit-test-run",
     preprocessing_version: "preprocessing-v1",
     metrics: { accuracy: 0.8, precision: 0.7, recall: f1, f1 },
+    evaluation: {
+      dataset: "verified_labelled_prediction_records",
+      sample_count: 30,
+      label_sources: ["unit-test"],
+      source: "verified_prediction_records",
+      source_version: "verified_prediction_records-v1",
+      feature_schema_version: "1.0.0",
+      preprocessing_version: "preprocessing-v1",
+      config: { validation_fraction: 0.2, random_seed: 42, minimum_evaluation_samples: 30 },
+      incumbent_model_id: modelId,
+      incumbent_model_version: "0.1.0",
+      incumbent_metrics: {
+        accuracy: 0.4,
+        precision: 0.2,
+        recall: 0.1,
+        f1: 0.0851063829787234,
+      },
+    },
     promoted,
   };
   fs.writeFileSync(artifactPath, "test-only candidate fixture");
@@ -126,25 +146,22 @@ afterEach(() => {
   candidateFiles.clear();
 });
 
-test("executes candidate retraining from labeled predictions and stores an unpromoted job", async () => {
-  const labeledRows = [{ id: 1, model_id: "nsl-kdd-baseline", input_features: { duration: 1 }, actual_label: "normal" }];
-  const candidate = {
-    status: "completed",
-    candidate_version: "candidate-unit-create",
-    sample_count: 30,
-    promoted: false,
-    metrics: { accuracy: 0.8, precision: 0.7, recall: 0.6, f1: 0.65 },
-  };
-  let insertValues;
+test("queues retraining before training and returns the persistent job", async () => {
+  const job = { id: 11, model_id: "nsl-kdd-baseline", status: "queued", promoted: false };
+  let runCount = 0;
   pool.query = async (query, values) => {
-    if (/SELECT id, model_id, input_features/i.test(query)) return { rows: labeledRows };
-    insertValues = values;
-    return { rows: [{ id: 11, model_id: values[0], promoted: values[6], new_model_version: values[5] }] };
+    runCount += 1;
+    if (/SELECT model_version FROM model_versions/i.test(query)) return { rows: [{ model_version: "0.1.0" }] };
+    if (/INSERT INTO retraining_jobs/i.test(query)) {
+      assert.match(query, /'queued'/);
+      assert.equal(values[0], "nsl-kdd-baseline");
+      assert.equal(values[1], "manual");
+      return { rows: [job] };
+    }
+    throw new Error(`Unexpected query: ${query}`);
   };
-  candidateRetrainingService.runCandidateRetraining = async (rows, options) => {
-    assert.deepEqual(rows, labeledRows);
-    assert.equal(options.modelId, "nsl-kdd-baseline");
-    return candidate;
+  candidateRetrainingService.runCandidateRetraining = async () => {
+    throw new Error("Training must be performed by the background worker");
   };
 
   const response = responseRecorder();
@@ -153,17 +170,16 @@ test("executes candidate retraining from labeled predictions and stores an unpro
     response,
   );
 
-  assert.equal(response.statusCode, 201);
-  assert.equal(response.body.candidate, candidate);
-  assert.equal(response.body.job.promoted, false);
-  assert.equal(insertValues[5], candidate.candidate_version);
-  assert.equal(insertValues[6], false);
+  assert.equal(response.statusCode, 202);
+  assert.equal(response.body.status, "queued");
+  assert.equal(response.body.job, job);
+  assert.equal(runCount, 2);
 });
 
 test("promotes only a candidate whose F1 is strictly greater and commits after reload", async () => {
   const version = "candidate-unit-better";
   createCandidate(version, 0.5);
-  const job = { id: 42, model_id: "nsl-kdd-baseline", old_model_version: "0.1.0", new_model_version: version, promoted: false };
+  const job = { id: 42, model_id: "nsl-kdd-baseline", old_model_version: "0.1.0", new_model_version: version, promoted: false, status: "candidate_ready" };
   const active = { id: 1, model_id: "nsl-kdd-baseline", model_version: "0.1.0", f1_score: 0.0851063829787234, is_active: true };
   const connection = createConnection({ job, active });
   const order = configurePromotionMocks(connection);
@@ -186,7 +202,7 @@ for (const [label, f1] of [["equal", 0.0851063829787234], ["lower", 0.08]]) {
   test(`rejects candidate with ${label} F1 without artifact promotion`, async () => {
     const version = `candidate-unit-${label}`;
     createCandidate(version, f1);
-    const job = { id: 43, model_id: "nsl-kdd-baseline", old_model_version: "0.1.0", new_model_version: version, promoted: false };
+    const job = { id: 43, model_id: "nsl-kdd-baseline", old_model_version: "0.1.0", new_model_version: version, promoted: false, status: "candidate_ready" };
     const active = { id: 1, model_id: "nsl-kdd-baseline", model_version: "0.1.0", f1_score: 0.0851063829787234, is_active: true };
     const connection = createConnection({ job, active });
     let artifactPromotionCalled = false;
@@ -207,7 +223,7 @@ for (const [label, f1] of [["equal", 0.0851063829787234], ["lower", 0.08]]) {
 test("failed artifact preparation leaves the incumbent DB row active", async () => {
   const version = "candidate-unit-artifact-failure";
   createCandidate(version, 0.5);
-  const job = { id: 44, model_id: "nsl-kdd-baseline", old_model_version: "0.1.0", new_model_version: version, promoted: false };
+  const job = { id: 44, model_id: "nsl-kdd-baseline", old_model_version: "0.1.0", new_model_version: version, promoted: false, status: "candidate_ready" };
   const active = { id: 1, model_id: "nsl-kdd-baseline", model_version: "0.1.0", f1_score: 0.085, is_active: true };
   const connection = createConnection({ job, active });
   configurePromotionMocks(connection);
@@ -222,10 +238,64 @@ test("failed artifact preparation leaves the incumbent DB row active", async () 
   assert.equal(connection.queries.some(({ text }) => /UPDATE model_versions|INSERT INTO model_versions/i.test(text)), false);
 });
 
+test("rejects a candidate when the active incumbent changed after evaluation", async () => {
+  const version = "candidate-unit-stale";
+  createCandidate(version, 0.9);
+  const job = {
+    id: 46,
+    model_id: "nsl-kdd-baseline",
+    old_model_version: "0.1.0",
+    new_model_version: version,
+    promoted: false,
+    status: "candidate_ready",
+  };
+  const active = {
+    id: 2,
+    model_id: "nsl-kdd-baseline",
+    model_version: "0.2.0",
+    f1_score: 0.6,
+    is_active: true,
+  };
+  const connection = createConnection({ job, active });
+  pool.connect = async () => connection;
+
+  const response = responseRecorder();
+  await retrainingController.promoteRetrainingJob({ params: { id: "46" } }, response);
+
+  assert.equal(response.statusCode, 409);
+  assert.match(response.body.error, /stale/i);
+  assert.equal(connection.queries.some(({ text }) => /INSERT INTO model_versions/i.test(text)), false);
+});
+
+test("rejects non-finite candidate metrics before promotion", async () => {
+  const version = "candidate-unit-invalid-metrics";
+  const metadata = createCandidate(version, 0.9);
+  metadata.metrics.f1 = "NaN";
+  const metadataPath = path.join(projectRoot, "ml", "artifacts", "candidates", `${version}.json`);
+  fs.writeFileSync(metadataPath, JSON.stringify(metadata));
+
+  const job = {
+    id: 47,
+    model_id: "nsl-kdd-baseline",
+    old_model_version: "0.1.0",
+    new_model_version: version,
+    promoted: false,
+    status: "candidate_ready",
+  };
+  const connection = createConnection({ job, active: {} });
+  pool.connect = async () => connection;
+
+  const response = responseRecorder();
+  await retrainingController.promoteRetrainingJob({ params: { id: "47" } }, response);
+
+  assert.equal(response.statusCode, 400);
+  assert.match(response.body.error, /metric is invalid/i);
+});
+
 test("reload failure rolls back artifacts and never activates the candidate in PostgreSQL", async () => {
   const version = "candidate-unit-reload-failure";
   createCandidate(version, 0.5);
-  const job = { id: 45, model_id: "nsl-kdd-baseline", old_model_version: "0.1.0", new_model_version: version, promoted: false };
+  const job = { id: 45, model_id: "nsl-kdd-baseline", old_model_version: "0.1.0", new_model_version: version, promoted: false, status: "candidate_ready" };
   const active = { id: 1, model_id: "nsl-kdd-baseline", model_version: "0.1.0", f1_score: 0.085, is_active: true };
   const connection = createConnection({ job, active });
   const order = configurePromotionMocks(connection, { reloadFails: true });
@@ -243,7 +313,7 @@ for (const jobPromoted of [true, false]) {
 test(`reconciles an already-active candidate with promoted job status ${jobPromoted}`, async () => {
   const version = "candidate-unit-reconcile";
   createCandidate(version, 0.5);
-  const job = { id: 3, model_id: "nsl-kdd-baseline", old_model_version: "0.1.0", new_model_version: version, promoted: jobPromoted };
+  const job = { id: 3, model_id: "nsl-kdd-baseline", old_model_version: "0.1.0", new_model_version: version, promoted: jobPromoted, status: "deployed" };
   const active = { id: 2, model_id: "nsl-kdd-baseline", model_version: version, f1_score: 0.5, is_active: true };
   const previous = { id: 1, model_id: "nsl-kdd-baseline", model_version: "0.1.0", f1_score: 0.0851063829787234, is_active: false };
   const connection = createConnection({ job, active, previous });

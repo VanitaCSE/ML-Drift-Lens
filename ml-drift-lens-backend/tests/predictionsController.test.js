@@ -73,6 +73,29 @@ test("stores a prediction in PostgreSQL and returns its id", async () => {
     assert.ok(queryValues[9] instanceof Date);
 });
 
+test("authoritative class mapping: serializes class 0 as normal and class 1 as attack", async () => {
+  const attackMlResponse = {
+    prediction: "attack",
+    prediction_class: 1,
+    confidence: 0.98,
+  };
+  let queryValues;
+  mlServiceClient.predict = async () => attackMlResponse;
+  pool.query = async (text, values) => {
+    queryValues = values;
+    return { rows: [{ id: 42 }] };
+  };
+
+  const response = responseRecorder();
+  await predictionsController.createPrediction(predictionRequest, response);
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.body.prediction, "attack");
+  assert.equal(response.body.prediction_class, 1);
+  assert.equal(queryValues[4], "attack");
+  assert.equal(queryValues[5], 1);
+});
+
 test("retrieves paginated prediction history without input features", async () => {
   const rows = [{ id: 1, prediction: "attack" }];
   let queryText;

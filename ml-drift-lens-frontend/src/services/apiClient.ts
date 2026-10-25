@@ -33,7 +33,7 @@ interface PredictionResponse {
   stored_id: number;
 }
 
-interface ModelInfo {
+export interface ModelInfo {
   model_id?: string;
   model_name?: string;
   model_version: string;
@@ -48,7 +48,8 @@ interface ModelInfo {
   metrics?: Record<string, number | number[] | Record<string, number>>;
 }
 
-interface HealthStatus {
+export interface HealthStatus {
+  service?: string;
   status?: string;
   message?: string;
   healthy?: boolean;
@@ -56,7 +57,26 @@ interface HealthStatus {
   ml_service_healthy?: boolean;
 }
 
-interface ReadinessStatus {
+export interface DeploymentPrerequisite {
+  key: string;
+  label: string;
+  status: 'unconfigured' | 'configured_unverified' | 'verified' | 'failed' | 'blocked';
+  badge: string;
+  reason: string;
+}
+
+export interface DeploymentStatusResponse {
+  success: boolean;
+  environment: string;
+  inference_routing: string;
+  artifact_integrity: string;
+  all_passed: boolean;
+  can_redeploy: boolean;
+  redeployment_block_reason: string;
+  prerequisites: Record<string, DeploymentPrerequisite>;
+}
+
+export interface ReadinessStatus {
   ready: boolean;
   model_loaded: boolean;
   message: string;
@@ -126,14 +146,25 @@ export interface RetrainingJobRecord {
   id: number;
   model_id: string;
   triggered_by: string;
+  trigger_reason?: string | null;
+  status?: string;
   start_time: string;
   end_time: string | null;
+  updated_at?: string;
   old_model_version: string | null;
   new_model_version: string | null;
   promoted: boolean;
+  attempt_count?: number;
+  min_samples?: number;
+  sample_count?: number | null;
+  evaluation_sample_count?: number | null;
+  error_message?: string | null;
+  candidate_metrics?: Record<string, unknown> | null;
   reload_status: string | null;
   candidate_f1?: number | null;
   incumbent_f1?: number | null;
+  candidate_precision?: number | null;
+  candidate_recall?: number | null;
   promotion_reason?: string | null;
 }
 
@@ -142,22 +173,156 @@ export interface PaginationOptions {
   offset?: number;
 }
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  email_verified?: boolean;
+}
+
+export type CurrentSession =
+  | { authenticated: false; user: null }
+  | { authenticated: true; user: AuthUser; csrfToken: string; email_verified?: boolean };
+
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+let csrfToken: string | null = null;
+let authenticationFailureHandler: (() => void) | null = null;
+
+async function apiFetch(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  const method = (init.method || 'GET').toUpperCase();
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && csrfToken) {
+    headers.set('X-CSRF-Token', csrfToken);
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers,
+    credentials: 'include',
+  });
+  if (response.status === 401 && !path.startsWith('/auth/')) {
+    authenticationFailureHandler?.();
+  }
+  return response;
+}
+
+async function responseError(response: Response, fallback: string) {
+  const body = await response.json().catch(() => undefined) as {
+    error?: string;
+    code?: string;
+  } | undefined;
+  return new ApiError(
+    body?.error || `${fallback}: ${response.statusText}`,
+    response.status,
+    body?.code,
+  );
+}
+
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`);
+  const response = await apiFetch(path);
   if (!response.ok) {
-    throw new Error(`Failed to fetch ${path}: ${response.statusText}`);
+    throw await responseError(response, `Failed to fetch ${path}`);
   }
   return response.json();
 }
 
 export const apiClient = {
+  setCsrfToken(token: string | null) {
+    csrfToken = token;
+  },
+
+  setAuthenticationFailureHandler(handler: (() => void) | null) {
+    authenticationFailureHandler = handler;
+  },
+
+  async getCurrentSession(): Promise<CurrentSession> {
+    return getJson<CurrentSession>('/auth/me');
+  },
+
+  async login(email: string, password: string): Promise<AuthUser> {
+    const response = await apiFetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!response.ok) throw await responseError(response, 'Login failed');
+    const result = await response.json() as { user: AuthUser };
+    return result.user;
+  },
+
+  async register(email: string, password: string): Promise<AuthUser> {
+    const response = await apiFetch('/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!response.ok) throw await responseError(response, 'Registration failed');
+    const result = await response.json() as { user: AuthUser };
+    return result.user;
+  },
+
+  async requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
+    const response = await apiFetch('/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (!response.ok) throw await responseError(response, 'Password recovery request failed');
+    return response.json() as Promise<{ success: boolean; message: string }>;
+  },
+
+  async resetPassword(token: string, password: string): Promise<{ success: boolean; message: string }> {
+    const response = await apiFetch('/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password }),
+    });
+    if (!response.ok) throw await responseError(response, 'Password reset failed');
+    return response.json() as Promise<{ success: boolean; message: string }>;
+  },
+
+  async verifyEmail(token: string): Promise<{ success: boolean; message: string }> {
+    const response = await apiFetch('/auth/verify-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    if (!response.ok) throw await responseError(response, 'Email verification failed');
+    return response.json() as Promise<{ success: boolean; message: string }>;
+  },
+
+  async resendVerification(email: string): Promise<{ success: boolean; message: string }> {
+    const response = await apiFetch('/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (!response.ok) throw await responseError(response, 'Resend verification failed');
+    return response.json() as Promise<{ success: boolean; message: string }>;
+  },
+
+  async logout(): Promise<void> {
+    const response = await apiFetch('/auth/logout', { method: 'POST' });
+    if (!response.ok) throw await responseError(response, 'Logout failed');
+  },
+
   /**
    * Get model information
    */
   async getModelInfo(): Promise<ModelInfo> {
-    const response = await fetch(`${API_BASE}/model-info`);
+    const response = await apiFetch('/model-info');
     if (!response.ok) {
-      throw new Error(`Failed to fetch model info: ${response.statusText}`);
+      throw await responseError(response, 'Failed to fetch model info');
     }
     const data = await response.json();
     // Extract model from response wrapper
@@ -168,9 +333,13 @@ export const apiClient = {
    * Check health status
    */
   async getHealth(): Promise<HealthStatus> {
-    const response = await fetch(`${API_BASE}/health`);
+    const response = await apiFetch('/health');
     if (!response.ok) {
-      throw new Error(`Health check failed: ${response.statusText}`);
+      const data = await response.json().catch(() => null);
+      if (data && typeof data === 'object' && ('database_connected' in data || 'status' in data || 'ml_service_healthy' in data)) {
+        return data as HealthStatus;
+      }
+      throw await responseError(response, 'Health check failed');
     }
     return response.json();
   },
@@ -178,10 +347,18 @@ export const apiClient = {
   /**
    * Check readiness status
    */
+  async getDeploymentStatus(): Promise<DeploymentStatusResponse> {
+    return getJson<DeploymentStatusResponse>('/deployments/status');
+  },
+
   async getReadiness(): Promise<ReadinessStatus> {
-    const response = await fetch(`${API_BASE}/ready`);
+    const response = await apiFetch('/ready');
     if (!response.ok) {
-      throw new Error(`Readiness check failed: ${response.statusText}`);
+      const data = await response.json().catch(() => null);
+      if (data && typeof data === 'object' && ('ready' in data || 'model_loaded' in data)) {
+        return data as ReadinessStatus;
+      }
+      throw await responseError(response, 'Readiness check failed');
     }
     return response.json();
   },
@@ -190,7 +367,7 @@ export const apiClient = {
    * Submit a prediction request
    */
   async predict(request: PredictionRequest): Promise<PredictionResponse> {
-    const response = await fetch(`${API_BASE}/predictions`, {
+    const response = await apiFetch('/predictions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -199,7 +376,7 @@ export const apiClient = {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => ({}));
       const errorMessage = errorData.error || `Prediction failed: ${response.statusText}`;
       throw new Error(errorData.details ? `${errorMessage}: ${errorData.details}` : errorMessage);
     }
@@ -248,5 +425,9 @@ export const apiClient = {
 
   async getRetrainingJobs(): Promise<RetrainingJobRecord[]> {
     return getJson<RetrainingJobRecord[]>('/retraining');
+  },
+
+  async getRetrainingJob(jobId: number): Promise<RetrainingJobRecord> {
+    return getJson<RetrainingJobRecord>(`/retraining/${encodeURIComponent(jobId)}`);
   },
 };
