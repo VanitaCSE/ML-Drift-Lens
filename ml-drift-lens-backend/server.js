@@ -82,6 +82,7 @@ const app = createApp({ databasePool: pool });
 const { consumeDriftEventsOnce } = require("./services/alertingConsumer");
 const { ensureActiveModelVersion } = require("./services/modelVersionBootstrap");
 const { processNextRetrainingJob } = require("./services/retrainingWorker");
+const { applyAllMigrations } = require("./scripts/applyAllMigrations");
 
 function startBackgroundWorkers() {
   const consumerInterval = setInterval(() => {
@@ -109,7 +110,15 @@ function startBackgroundWorkers() {
   retrainingWorkerInterval.unref();
 }
 
-async function startServer({ port = PORT, host = HOST, skipModelBootstrap = false } = {}) {
+async function startServer({
+  port = PORT,
+  host = HOST,
+  skipModelBootstrap = false,
+  skipMigrations = process.env.SKIP_MIGRATIONS === "true",
+} = {}) {
+  if (!skipMigrations) {
+    await applyAllMigrations();
+  }
   if (!skipModelBootstrap) {
     await ensureActiveModelVersion();
   }
