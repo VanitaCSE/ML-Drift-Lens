@@ -23,7 +23,7 @@ describe('Deployments', () => {
     vi.mocked(apiClient.getDriftHistory).mockResolvedValue([]);
   });
 
-  it('renders current serving deployment and honest unconfigured cloud status', async () => {
+  it('renders current serving deployment and honest deployment controls without cloud prerequisites section', async () => {
     vi.mocked(apiClient.getHealth).mockResolvedValue({
       status: 'healthy',
       healthy: true,
@@ -87,8 +87,14 @@ describe('Deployments', () => {
       expect(screen.getByText('Current Serving Deployment')).toBeTruthy();
       expect(screen.getByText('candidate-20261009T061233Z-7e4ec984')).toBeTruthy();
       expect(screen.getByText('Loaded & Ready')).toBeTruthy();
-      expect(screen.getByText('Unconfigured (Disabled)')).toBeTruthy();
     });
+
+    // Verify Cloud & Staging Integration Prerequisites section and cards are completely removed
+    expect(screen.queryByText('Cloud & Staging Integration Prerequisites')).toBeNull();
+    expect(screen.queryByText('Render Staging Client')).toBeNull();
+    expect(screen.queryByText('Remote Durable Store')).toBeNull();
+    expect(screen.queryByText('Independent Live Verifier')).toBeNull();
+    expect(screen.queryByText('Operator Authorization')).toBeNull();
 
     const redeployBtn = screen.getByRole('button', { name: /Redeploy to Staging \(Disabled\)/i });
     expect(redeployBtn.hasAttribute('disabled')).toBe(true);
@@ -96,7 +102,7 @@ describe('Deployments', () => {
     expect(screen.getByText('Nominal · No Action Required')).toBeTruthy();
   });
 
-  it('renders backend-derived configured_unverified status dynamically', async () => {
+  it('renders backend-derived environment and routing status dynamically', async () => {
     vi.mocked(apiClient.getHealth).mockResolvedValue({
       status: 'healthy',
       healthy: true,
@@ -130,37 +136,17 @@ describe('Deployments', () => {
           badge: 'Configured (Unverified)',
           reason: 'Render staging credentials present in environment but connection has not been verified against the Render API.',
         },
-        remote_durable_store: {
-          key: 'remote_durable_store',
-          label: 'Remote Durable Store',
-          status: 'unconfigured',
-          badge: 'Unconfigured (Local Filesystem Only)',
-          reason: 'No remote durable object storage provider configured.',
-        },
-        independent_live_verifier: {
-          key: 'independent_live_verifier',
-          label: 'Independent Live Verifier',
-          status: 'unconfigured',
-          badge: 'Unconfigured (Local Probes Only)',
-          reason: 'No independent post-deployment verifier configured.',
-        },
-        operator_authorization: {
-          key: 'operator_authorization',
-          label: 'Operator Authorization',
-          status: 'blocked',
-          badge: 'Policy Blocked (403)',
-          reason: 'Operator authorization policy is unconfigured.',
-        },
       },
     });
 
     render(<Deployments />);
 
     await waitFor(() => {
-      expect(screen.getByText('Configured (Unverified)')).toBeTruthy();
       expect(screen.getByText('Render Staging')).toBeTruthy();
       expect(screen.getByText('Backend Proxy to inference.internal:8000')).toBeTruthy();
     });
+
+    expect(screen.queryByText('Cloud & Staging Integration Prerequisites')).toBeNull();
   });
 
   it('displays attention recommended status with probabilistic inference disclaimer when attacks are detected', async () => {
@@ -189,36 +175,7 @@ describe('Deployments', () => {
       all_passed: false,
       can_redeploy: false,
       redeployment_block_reason: 'Automated cloud redeployment is permanently disabled until all required cloud infrastructure prerequisites are fulfilled.',
-      prerequisites: {
-        render_staging_client: {
-          key: 'render_staging_client',
-          label: 'Render Staging Client',
-          status: 'unconfigured',
-          badge: 'Unconfigured (Disabled)',
-          reason: 'Missing RENDER_API_KEY, RENDER_STAGING_SERVICE_ID, or RENDER_TARGET_ENVIRONMENT is not set to staging.',
-        },
-        remote_durable_store: {
-          key: 'remote_durable_store',
-          label: 'Remote Durable Store',
-          status: 'unconfigured',
-          badge: 'Unconfigured (Local Filesystem Only)',
-          reason: 'No remote durable object storage provider configured.',
-        },
-        independent_live_verifier: {
-          key: 'independent_live_verifier',
-          label: 'Independent Live Verifier',
-          status: 'unconfigured',
-          badge: 'Unconfigured (Local Probes Only)',
-          reason: 'No independent post-deployment verifier configured.',
-        },
-        operator_authorization: {
-          key: 'operator_authorization',
-          label: 'Operator Authorization',
-          status: 'blocked',
-          badge: 'Policy Blocked (403)',
-          reason: 'Operator authorization policy is unconfigured.',
-        },
-      },
+      prerequisites: {},
     });
     vi.mocked(apiClient.getPredictionHistory).mockResolvedValue([
       {
@@ -255,6 +212,8 @@ describe('Deployments', () => {
       const redeployBtn = screen.getByRole('button', { name: /Redeploy to Staging \(Disabled\)/i });
       expect(redeployBtn.hasAttribute('disabled')).toBe(true);
     });
+
+    expect(screen.queryByText('Cloud & Staging Integration Prerequisites')).toBeNull();
   });
 
   it('handles backend failure gracefully and provides retry', async () => {

@@ -5,56 +5,10 @@ import type {
   ModelInfo,
   ReadinessStatus,
   DeploymentStatusResponse,
-  DeploymentPrerequisite,
   PredictionHistoryItem,
   AlertRecord,
   DriftScore,
 } from '../services/apiClient';
-
-const DEFAULT_PREREQUISITES: DeploymentPrerequisite[] = [
-  {
-    key: 'render_staging_client',
-    label: 'Render Staging Client',
-    status: 'unconfigured',
-    badge: 'Unconfigured (Disabled)',
-    reason: 'Missing RENDER_API_KEY, RENDER_STAGING_SERVICE_ID, or RENDER_TARGET_ENVIRONMENT is not set to staging.',
-  },
-  {
-    key: 'remote_durable_store',
-    label: 'Remote Durable Store',
-    status: 'unconfigured',
-    badge: 'Unconfigured (Local Filesystem Only)',
-    reason: 'No remote durable object storage provider (e.g. S3, Cloudflare R2, GCS) configured. Model artifacts remain bound to local container storage.',
-  },
-  {
-    key: 'independent_live_verifier',
-    label: 'Independent Live Verifier',
-    status: 'unconfigured',
-    badge: 'Unconfigured (Local Probes Only)',
-    reason: 'No independent post-deployment verification probe configured to validate live serving model SHA-256 checksum and version against registry.',
-  },
-  {
-    key: 'operator_authorization',
-    label: 'Operator Authorization',
-    status: 'blocked',
-    badge: 'Policy Blocked (403)',
-    reason: 'Operator authorization policy is unconfigured; deployment and retraining actions fail closed with HTTP 403 (authorization_policy_unconfigured).',
-  },
-];
-
-function getStatusClass(status: string): string {
-  switch (status) {
-    case 'verified':
-      return 'status-success';
-    case 'configured_unverified':
-      return 'status-warning';
-    case 'failed':
-    case 'blocked':
-    case 'unconfigured':
-    default:
-      return 'status-danger';
-  }
-}
 
 export const Deployments: React.FC = () => {
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -99,9 +53,6 @@ export const Deployments: React.FC = () => {
   }, [fetchStatus]);
 
   const isLocalReady = readiness?.ready && readiness?.model_loaded;
-  const prereqList: DeploymentPrerequisite[] = deploymentStatus?.prerequisites
-    ? Object.values(deploymentStatus.prerequisites)
-    : DEFAULT_PREREQUISITES;
 
   // Genuine operational telemetry indicators
   const totalPredictions = predictions.length;
@@ -281,23 +232,6 @@ export const Deployments: React.FC = () => {
                   <strong>✅ Operational Baseline Stable:</strong> Telemetry indicates normal baseline operation across observed prediction flows. No network intrusion predicted or verified, and no statistical drift detected. Candidate retraining or cloud redeployment is not warranted by current telemetry.
                 </span>
               )}
-            </div>
-          </div>
-
-          <div className="panel-section">
-            <div className="section-head">
-              <h3>Cloud & Staging Integration Prerequisites</h3>
-            </div>
-            <div className="detail-grid compact-grid">
-              {prereqList.map((prereq) => (
-                <div key={prereq.key} className="detail-item">
-                  <span>{prereq.label}</span>
-                  <strong className={getStatusClass(prereq.status)}>{prereq.badge}</strong>
-                  <p className="status-note" style={{ marginTop: '4px', fontSize: '0.82rem' }}>
-                    {prereq.reason}
-                  </p>
-                </div>
-              ))}
             </div>
           </div>
 
