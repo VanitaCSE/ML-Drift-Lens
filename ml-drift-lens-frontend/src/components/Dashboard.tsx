@@ -518,6 +518,7 @@ function PredictionsPanel({
   error,
   badge,
   badgeTone,
+  isDemo,
   onRetry,
   onLabelPrediction,
   updatingPredictionId,
@@ -527,6 +528,7 @@ function PredictionsPanel({
   error?: string;
   badge?: string;
   badgeTone?: 'production' | 'benchmark' | 'demo';
+  isDemo?: boolean;
   onRetry: () => void;
   onLabelPrediction?: (id: number, label: 'normal' | 'attack') => Promise<void>;
   updatingPredictionId?: number | null;
@@ -534,6 +536,24 @@ function PredictionsPanel({
   return (
     <SectionCard title="Recent predictions" eyebrow="Inference activity" badge={badge} badgeTone={badgeTone} id="recent-predictions">
       <SectionState loading={loading} error={error} onRetry={onRetry}>
+        {isDemo && (
+          <div
+            className="demo-inference-notice"
+            role="status"
+            style={{
+              marginBottom: '12px',
+              padding: '10px 14px',
+              borderRadius: '6px',
+              background: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.25)',
+              fontSize: '0.825rem',
+              color: 'var(--color-text, #e2e8f0)',
+              lineHeight: 1.45,
+            }}
+          >
+            <strong>🔶 Synthetic Demonstration Inferences:</strong> The 4 records below (<code>sim-req-901</code> to <code>sim-req-904</code>) are synthetic examples demonstrating normal and attack traffic patterns with simulated latency and confidence scores. They do not represent genuine production network traffic or database records.
+          </div>
+        )}
         <DataTable
           columns={[
             { key: 'id', label: 'Prediction ID', render: (row) => formatNumber(row.id) },
@@ -826,15 +846,15 @@ export function Dashboard() {
       label: 'Total Predictions',
       value: formatNumber(displayMetrics?.total_prediction_count),
       note: isDemo ? 'Simulated stream total' : 'Recorded in database',
-      badge: isDemo ? 'Simulation' : 'Production',
-      badgeTone: isDemo ? 'demo' : 'production',
+      badge: isDemo ? 'Simulated' : undefined,
+      badgeTone: isDemo ? 'demo' : undefined,
     },
     {
       label: 'Labeled Predictions',
       value: formatNumber(displayMetrics?.labeled_prediction_count),
       note: isDemo ? '500 verified holdouts' : 'Available for evaluation',
-      badge: isDemo ? 'Simulation' : 'Production',
-      badgeTone: isDemo ? 'demo' : 'production',
+      badge: isDemo ? 'Simulated' : undefined,
+      badgeTone: isDemo ? 'demo' : undefined,
     },
     {
       label: 'Accuracy',
@@ -842,10 +862,10 @@ export function Dashboard() {
         displayMetrics?.accuracy !== null && displayMetrics?.accuracy !== undefined
           ? formatPercentage(displayMetrics.accuracy)
           : 'Awaiting labels',
-      note: isDemo ? 'Benchmark holdout test' : normalizeStatus(displayMetrics?.metrics_status),
+      note: isDemo ? 'Canonical test holdout' : normalizeStatus(displayMetrics?.metrics_status),
       tone: 'positive',
-      badge: isDemo ? 'Holdout Test' : 'Production',
-      badgeTone: isDemo ? 'benchmark' : 'production',
+      badge: isDemo ? 'Benchmark' : undefined,
+      badgeTone: isDemo ? 'benchmark' : undefined,
     },
     {
       label: 'Precision',
@@ -855,8 +875,8 @@ export function Dashboard() {
           : 'Awaiting labels',
       note: 'Attack classification',
       tone: 'positive',
-      badge: isDemo ? 'Holdout Test' : 'Production',
-      badgeTone: isDemo ? 'benchmark' : 'production',
+      badge: isDemo ? 'Benchmark' : undefined,
+      badgeTone: isDemo ? 'benchmark' : undefined,
     },
     {
       label: 'Recall',
@@ -866,8 +886,8 @@ export function Dashboard() {
           : 'Awaiting labels',
       note: 'Attack classification',
       tone: 'warning',
-      badge: isDemo ? 'Holdout Test' : 'Production',
-      badgeTone: isDemo ? 'benchmark' : 'production',
+      badge: isDemo ? 'Benchmark' : undefined,
+      badgeTone: isDemo ? 'benchmark' : undefined,
     },
     {
       label: 'F1 Score',
@@ -876,8 +896,8 @@ export function Dashboard() {
           ? formatPercentage(displayMetrics.f1)
           : 'Awaiting labels',
       note: 'Harmonic mean',
-      badge: isDemo ? 'Holdout Test' : 'Production',
-      badgeTone: isDemo ? 'benchmark' : 'production',
+      badge: isDemo ? 'Benchmark' : undefined,
+      badgeTone: isDemo ? 'benchmark' : undefined,
     },
   ];
 
@@ -971,10 +991,24 @@ export function Dashboard() {
           </button>
         </div>
       ) : (
-        <section className="dashboard-metrics-grid" aria-label="Model performance metrics">
-          {metricCards.map((metric) => (
-            <MetricCard key={metric.label} {...metric} />
-          ))}
+        <section aria-label="Model performance metrics">
+          <div className="section-head" style={{ marginBottom: '12px' }}>
+            <div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>
+                {isDemo ? 'Benchmark & Simulation Overview' : 'Operational Model Metrics'}
+              </h3>
+              <p className="page-description" style={{ fontSize: '0.825rem', margin: '2px 0 0' }}>
+                {isDemo
+                  ? 'Canonical NSL-KDD test holdout evaluation (22,544 samples) paired with simulated streaming telemetry.'
+                  : 'Live telemetry and ground-truth evaluation computed from production inferences recorded in PostgreSQL.'}
+              </p>
+            </div>
+          </div>
+          <div className="dashboard-metrics-grid">
+            {metricCards.map((metric) => (
+              <MetricCard key={metric.label} {...metric} />
+            ))}
+          </div>
         </section>
       )}
 
@@ -1207,7 +1241,7 @@ export function Dashboard() {
             </div>
           </div>
           <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
-            Ratio of benign network traffic flows to detected security threats across observed prediction traffic.
+            Ratio of benign network traffic flows to detected attack classifications across observed prediction traffic.
           </p>
         </div>
       </div>
@@ -1288,8 +1322,9 @@ export function Dashboard() {
           rows={displayPredictions}
           loading={loading.predictions}
           error={errors.predictions}
-          badge={isDemo ? 'Simulated Inferences' : 'Production Inferences'}
+          badge={isDemo ? 'Synthetic Demo' : 'Production Inferences'}
           badgeTone={isDemo ? 'demo' : 'production'}
+          isDemo={isDemo}
           onRetry={retry}
           onLabelPrediction={isDemo ? undefined : handleLabelPrediction}
           updatingPredictionId={updatingPredictionId}

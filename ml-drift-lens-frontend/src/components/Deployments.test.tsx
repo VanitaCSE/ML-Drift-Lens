@@ -9,12 +9,18 @@ vi.mock('../services/apiClient', () => ({
     getReadiness: vi.fn(),
     getModelInfo: vi.fn(),
     getDeploymentStatus: vi.fn(),
+    getPredictionHistory: vi.fn(),
+    getAlerts: vi.fn(),
+    getDriftHistory: vi.fn(),
   },
 }));
 
 describe('Deployments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(apiClient.getPredictionHistory).mockResolvedValue([]);
+    vi.mocked(apiClient.getAlerts).mockResolvedValue([]);
+    vi.mocked(apiClient.getDriftHistory).mockResolvedValue([]);
   });
 
   it('renders current serving deployment and honest unconfigured cloud status', async () => {
@@ -87,6 +93,7 @@ describe('Deployments', () => {
     const redeployBtn = screen.getByRole('button', { name: /Redeploy to Staging \(Disabled\)/i });
     expect(redeployBtn.hasAttribute('disabled')).toBe(true);
     expect(screen.getByText(/permanently disabled/i)).toBeTruthy();
+    expect(screen.getByText('Nominal · No Action Required')).toBeTruthy();
   });
 
   it('renders backend-derived configured_unverified status dynamically', async () => {
@@ -153,6 +160,100 @@ describe('Deployments', () => {
       expect(screen.getByText('Configured (Unverified)')).toBeTruthy();
       expect(screen.getByText('Render Staging')).toBeTruthy();
       expect(screen.getByText('Backend Proxy to inference.internal:8000')).toBeTruthy();
+    });
+  });
+
+  it('displays attention recommended status with probabilistic inference disclaimer when attacks are detected', async () => {
+    vi.mocked(apiClient.getHealth).mockResolvedValue({
+      status: 'healthy',
+      healthy: true,
+      service: 'modelwatch-backend',
+    });
+    vi.mocked(apiClient.getReadiness).mockResolvedValue({
+      ready: true,
+      model_loaded: true,
+      message: 'Model is ready',
+    });
+    vi.mocked(apiClient.getModelInfo).mockResolvedValue({
+      model_version: 'nsl-kdd-validation-20260928',
+      model_type: 'xgboost',
+      num_features: 41,
+      preprocessing_version: 'preprocessing-v1',
+      training_timestamp: '2026-09-28',
+    });
+    vi.mocked(apiClient.getDeploymentStatus).mockResolvedValue({
+      success: true,
+      environment: 'Local Development (127.0.0.1)',
+      inference_routing: 'Backend Proxy to FastAPI (port 28000)',
+      artifact_integrity: 'Verified SHA-256 Manifest v1',
+      all_passed: false,
+      can_redeploy: false,
+      redeployment_block_reason: 'Automated cloud redeployment is permanently disabled until all required cloud infrastructure prerequisites are fulfilled.',
+      prerequisites: {
+        render_staging_client: {
+          key: 'render_staging_client',
+          label: 'Render Staging Client',
+          status: 'unconfigured',
+          badge: 'Unconfigured (Disabled)',
+          reason: 'Missing RENDER_API_KEY, RENDER_STAGING_SERVICE_ID, or RENDER_TARGET_ENVIRONMENT is not set to staging.',
+        },
+        remote_durable_store: {
+          key: 'remote_durable_store',
+          label: 'Remote Durable Store',
+          status: 'unconfigured',
+          badge: 'Unconfigured (Local Filesystem Only)',
+          reason: 'No remote durable object storage provider configured.',
+        },
+        independent_live_verifier: {
+          key: 'independent_live_verifier',
+          label: 'Independent Live Verifier',
+          status: 'unconfigured',
+          badge: 'Unconfigured (Local Probes Only)',
+          reason: 'No independent post-deployment verifier configured.',
+        },
+        operator_authorization: {
+          key: 'operator_authorization',
+          label: 'Operator Authorization',
+          status: 'blocked',
+          badge: 'Policy Blocked (403)',
+          reason: 'Operator authorization policy is unconfigured.',
+        },
+      },
+    });
+    vi.mocked(apiClient.getPredictionHistory).mockResolvedValue([
+      {
+        id: 1,
+        model_id: 'nsl-kdd-baseline',
+        model_version: 'nsl-kdd-validation-20260928',
+        preprocessing_version: 'preprocessing-v1',
+        input_features: '{}',
+        prediction: 'attack',
+        prediction_class: 1,
+        confidence: 0.985,
+        request_id: 'req-atk-1',
+        timestamp: '2026-10-26T12:00:00Z',
+      },
+    ]);
+    vi.mocked(apiClient.getAlerts).mockResolvedValue([
+      {
+        id: 10,
+        model_id: 'nsl-kdd-baseline',
+        message: 'Elevated attack probability',
+        status: 'active',
+        timestamp: '2026-10-26T12:00:00Z',
+        drift_score_id: 1,
+      },
+    ]);
+
+    render(<Deployments />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Attention Recommended · Potential Threat Detected')).toBeTruthy();
+      expect(screen.getByText('1 flows (Probabilistic Inference)')).toBeTruthy();
+      expect(screen.getByText(/model classification is a probabilistic inference/i)).toBeTruthy();
+      // Button must remain disabled fail-closed
+      const redeployBtn = screen.getByRole('button', { name: /Redeploy to Staging \(Disabled\)/i });
+      expect(redeployBtn.hasAttribute('disabled')).toBe(true);
     });
   });
 

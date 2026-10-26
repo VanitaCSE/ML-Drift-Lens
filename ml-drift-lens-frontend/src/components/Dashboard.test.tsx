@@ -402,4 +402,26 @@ describe('Dashboard', () => {
     expect(screen.getByText('Predicted Traffic Class Balance')).toBeTruthy();
     expect(screen.getAllByText(/4.2 ms/).length).toBeGreaterThanOrEqual(1);
   });
+
+  it('renders clean metric section headings and separates demo telemetry from live inference', async () => {
+    render(<Dashboard />);
+    await waitFor(() => expect(screen.getByText('Operational Model Metrics')).toBeTruthy());
+    expect(screen.getByText(/Live telemetry and ground-truth evaluation/)).toBeTruthy();
+
+    // In live production mode, metric cards do not repeat redundant "Production" badges
+    const metricSection = screen.getByLabelText('Model performance metrics');
+    expect(metricSection.querySelectorAll('.metric-card-badge').length).toBe(0);
+
+    // Switch to Demo mode
+    const demoButton = screen.getByRole('button', { name: /Benchmark & Simulation/ });
+    act(() => {
+      demoButton.click();
+    });
+
+    expect(screen.getByText('Benchmark & Simulation Overview')).toBeTruthy();
+    expect(screen.getByText(/Canonical NSL-KDD test holdout evaluation/)).toBeTruthy();
+    expect(screen.getByText(/Synthetic Demonstration Inferences/)).toBeTruthy();
+    expect(screen.getAllByText('sim-req-901').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('sim-req-904').length).toBeGreaterThanOrEqual(1);
+  });
 });

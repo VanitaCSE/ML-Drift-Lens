@@ -6,6 +6,9 @@ import type {
   ReadinessStatus,
   DeploymentStatusResponse,
   DeploymentPrerequisite,
+  PredictionHistoryItem,
+  AlertRecord,
+  DriftScore,
 } from '../services/apiClient';
 
 const DEFAULT_PREREQUISITES: DeploymentPrerequisite[] = [
@@ -58,6 +61,9 @@ export const Deployments: React.FC = () => {
   const [readiness, setReadiness] = useState<ReadinessStatus | null>(null);
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
   const [deploymentStatus, setDeploymentStatus] = useState<DeploymentStatusResponse | null>(null);
+  const [predictions, setPredictions] = useState<PredictionHistoryItem[]>([]);
+  const [alerts, setAlerts] = useState<AlertRecord[]>([]);
+  const [driftHistory, setDriftHistory] = useState<DriftScore[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,16 +71,22 @@ export const Deployments: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const [healthRes, readinessRes, info, deployRes] = await Promise.all([
+      const [healthRes, readinessRes, info, deployRes, predsRes, alertsRes, driftRes] = await Promise.all([
         apiClient.getHealth(),
         apiClient.getReadiness().catch(() => null),
         apiClient.getModelInfo().catch(() => null),
         apiClient.getDeploymentStatus().catch(() => null),
+        apiClient.getPredictionHistory({ limit: 100 }).catch(() => [] as PredictionHistoryItem[]),
+        apiClient.getAlerts({ limit: 50 }).catch(() => [] as AlertRecord[]),
+        apiClient.getDriftHistory({ limit: 10 }).catch(() => [] as DriftScore[]),
       ]);
       setHealth(healthRes);
       setReadiness(readinessRes);
       setModelInfo(info);
       setDeploymentStatus(deployRes);
+      setPredictions(Array.isArray(predsRes) ? predsRes : []);
+      setAlerts(Array.isArray(alertsRes) ? alertsRes : []);
+      setDriftHistory(Array.isArray(driftRes) ? driftRes : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load deployment status');
     } finally {
@@ -90,6 +102,30 @@ export const Deployments: React.FC = () => {
   const prereqList: DeploymentPrerequisite[] = deploymentStatus?.prerequisites
     ? Object.values(deploymentStatus.prerequisites)
     : DEFAULT_PREREQUISITES;
+
+  // Genuine operational telemetry indicators
+  const totalPredictions = predictions.length;
+  const attackPredictions = predictions.filter(
+    (p) => p.prediction_class === 1 || p.prediction?.toLowerCase() === 'attack'
+  ).length;
+  const verifiedAttackLabels = predictions.filter(
+    (p) => p.actual_label?.toLowerCase() === 'attack'
+  ).length;
+  const verifiedNormalLabels = predictions.filter(
+    (p) => p.actual_label?.toLowerCase() === 'normal'
+  ).length;
+  const totalVerifiedLabels = verifiedAttackLabels + verifiedNormalLabels;
+  const activeAlerts = alerts.filter(
+    (a) => a.status?.toLowerCase() === 'active' || a.status?.toLowerCase() === 'open'
+  ).length;
+  const driftDetected = driftHistory.some(
+    (d) =>
+      d.status === 'drift' ||
+      d.status === 'significant_drift' ||
+      (typeof d.score === 'number' && typeof d.threshold === 'number' && d.score >= d.threshold)
+  );
+
+  const hasAttentionTrigger = attackPredictions > 0 || verifiedAttackLabels > 0 || activeAlerts > 0 || driftDetected;
 
   return (
     <div className="page-shell page-shell-tight">
@@ -173,6 +209,82 @@ export const Deployments: React.FC = () => {
           </div>
 
           <div className="panel-section">
+            <div className="section-head action-head">
+              <div>
+                <h3>Operational Threat & Model Attention Telemetry</h3>
+                <p className="page-description">
+                  Model health status derived from genuine prediction streams, ground truth coverage, and statistical drift indicators.
+                </p>
+              </div>
+              <span
+                className={`status-badge ${hasAttentionTrigger ? 'status-warning' : 'status-success'}`}
+                style={{ alignSelf: 'center', fontWeight: 600, fontSize: '0.82rem', padding: '4px 10px', borderRadius: '4px' }}
+              >
+                {hasAttentionTrigger
+                  ? 'Attention Recommended · Potential Threat Detected'
+                  : 'Nominal · No Action Required'}
+              </span>
+            </div>
+            <div className="detail-grid compact-grid">
+              <div className="detail-item">
+                <span>Observed Inferences</span>
+                <strong>{totalPredictions} recorded</strong>
+              </div>
+              <div className="detail-item">
+                <span>Predicted Attacks</span>
+                <strong className={attackPredictions > 0 ? 'status-warning' : 'status-success'}>
+                  {attackPredictions} flows (Probabilistic Inference)
+                </strong>
+              </div>
+              <div className="detail-item">
+                <span>Verified Ground Truth</span>
+                <strong>
+                  {totalVerifiedLabels > 0
+                    ? `${totalVerifiedLabels} labeled (${verifiedAttackLabels} attack, ${verifiedNormalLabels} normal)`
+                    : 'Awaiting labels (0)'}
+                </strong>
+              </div>
+              <div className="detail-item">
+                <span>Active System Alerts</span>
+                <strong className={activeAlerts > 0 ? 'status-danger' : 'status-success'}>
+                  {activeAlerts} active
+                </strong>
+              </div>
+              <div className="detail-item">
+                <span>Statistical Drift</span>
+                <strong className={driftDetected ? 'status-danger' : 'status-success'}>
+                  {driftDetected ? 'Drift Alert Detected' : 'Within Baseline Tolerance'}
+                </strong>
+              </div>
+              <div className="detail-item">
+                <span>Candidate Promotion Path</span>
+                <strong>Retraining Center (Local Artifact Promotion)</strong>
+              </div>
+            </div>
+            <div
+              style={{
+                marginTop: '12px',
+                padding: '10px 14px',
+                borderRadius: '6px',
+                background: hasAttentionTrigger ? 'rgba(245, 158, 11, 0.08)' : 'rgba(34, 197, 94, 0.08)',
+                border: hasAttentionTrigger ? '1px solid rgba(245, 158, 11, 0.25)' : '1px solid rgba(34, 197, 94, 0.25)',
+                fontSize: '0.825rem',
+                lineHeight: 1.5,
+              }}
+            >
+              {hasAttentionTrigger ? (
+                <span>
+                  <strong>⚠️ Model Attention Trigger Active:</strong> Telemetry indicates incoming network flows classified as attacks ({attackPredictions}) or active drift/system alerts ({activeAlerts}). Note that <strong>model classification is a probabilistic inference</strong> based on incoming feature vectors, not a ground-truth confirmation. Operator investigation and label verification are recommended before triggering candidate retraining. Note that cloud staging redeployment remains permanently disabled until cloud infrastructure prerequisites and operator authorization policies are configured.
+                </span>
+              ) : (
+                <span>
+                  <strong>✅ Operational Baseline Stable:</strong> Telemetry indicates normal baseline operation across observed prediction flows. No network intrusion predicted or verified, and no statistical drift detected. Candidate retraining or cloud redeployment is not warranted by current telemetry.
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="panel-section">
             <div className="section-head">
               <h3>Cloud & Staging Integration Prerequisites</h3>
             </div>
@@ -195,7 +307,7 @@ export const Deployments: React.FC = () => {
                 <h3>Staging Redeployment Control</h3>
                 <p className="page-description">
                   {deploymentStatus?.redeployment_block_reason ||
-                    'Automated cloud redeployment is permanently disabled until all required cloud infrastructure prerequisites are fulfilled.'}
+                    'Automated cloud redeployment is permanently disabled until all required cloud infrastructure prerequisites are fulfilled and operator authorization is configured.'}
                 </p>
               </div>
               <button
@@ -204,12 +316,15 @@ export const Deployments: React.FC = () => {
                 disabled
                 title={
                   deploymentStatus?.redeployment_block_reason ||
-                  'Redeploy action is disabled because cloud deployment prerequisites are unconfigured.'
+                  'Automated cloud redeployment is permanently disabled until all required cloud infrastructure prerequisites are fulfilled and operator authorization is configured.'
                 }
               >
                 Redeploy to Staging (Disabled)
               </button>
             </div>
+            <p className="status-note" style={{ marginTop: '8px', fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
+              ℹ <strong>Candidate Promotion vs. Cloud Redeployment:</strong> Local candidate promotion is managed separately in the Retraining Center using local filesystem artifacts and direct FastAPI reload. Cloud staging redeployment requires remote infrastructure authorization and verified cloud deployment pipelines.
+            </p>
           </div>
 
           <div className="info-panel" role="status">
