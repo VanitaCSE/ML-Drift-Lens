@@ -7,7 +7,9 @@
 const http = require("http");
 const https = require("https");
 
-const DEFAULT_ML_SERVICE_URL = "http://localhost:8000";
+const DEFAULT_ML_SERVICE_URL = process.env.NODE_ENV === "production"
+  ? "https://ml-drift-lens.onrender.com"
+  : "http://localhost:8000";
 
 function getMLServiceURL() {
   let url = (process.env.ML_SERVICE_URL || DEFAULT_ML_SERVICE_URL).trim();
@@ -52,9 +54,11 @@ function parseMLServiceURL(urlString = getMLServiceURL()) {
  * @param {string} method - HTTP method (GET, POST)
  * @param {string} path - URL path (e.g., /predict, /health)
  * @param {object} data - Request body (for POST)
+ * @param {number} retryAttempt - Internal retry counter for transient gateway errors
  * @returns {Promise<object>} Parsed response body
  */
-function makeMLServiceRequest(method, path, data = null) {
+function makeMLServiceRequest(method, path, data = null, retryAttempt = 0) {
+  const maxGatewayRetries = 2;
   return new Promise((resolve, reject) => {
     const candidateUrls = buildServiceURLCandidates();
     let lastError = null;
@@ -81,6 +85,17 @@ function makeMLServiceRequest(method, path, data = null) {
         });
 
         res.on("end", () => {
+          // If the gateway reports 502/503/504 while the ML service wakes up, retry with backoff
+          if ((res.statusCode === 502 || res.statusCode === 503 || res.statusCode === 504) && retryAttempt < maxGatewayRetries) {
+            const delayMs = (retryAttempt + 1) * 800;
+            setTimeout(() => {
+              makeMLServiceRequest(method, path, data, retryAttempt + 1)
+                .then(resolve)
+                .catch(reject);
+            }, delayMs);
+            return;
+          }
+
           try {
             const parsedBody = JSON.parse(responseBody);
 
@@ -119,6 +134,15 @@ function makeMLServiceRequest(method, path, data = null) {
           return;
         }
 
+        if (retryAttempt < maxGatewayRetries) {
+          setTimeout(() => {
+            makeMLServiceRequest(method, path, data, retryAttempt + 1)
+              .then(resolve)
+              .catch(reject);
+          }, (retryAttempt + 1) * 800);
+          return;
+        }
+
         reject(timeoutError);
       });
 
@@ -132,6 +156,15 @@ function makeMLServiceRequest(method, path, data = null) {
         if (candidateUrlIndex < candidateUrls.length - 1) {
           lastError = connectionError;
           attempt(candidateUrlIndex + 1);
+          return;
+        }
+
+        if (retryAttempt < maxGatewayRetries) {
+          setTimeout(() => {
+            makeMLServiceRequest(method, path, data, retryAttempt + 1)
+              .then(resolve)
+              .catch(reject);
+          }, (retryAttempt + 1) * 800);
           return;
         }
 

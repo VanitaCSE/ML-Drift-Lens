@@ -23,7 +23,7 @@ describe('Deployments', () => {
     vi.mocked(apiClient.getDriftHistory).mockResolvedValue([]);
   });
 
-  it('renders current serving deployment and honest deployment controls without cloud prerequisites section', async () => {
+  it('renders current serving deployment and telemetry without cloud prerequisites or redeployment blocks', async () => {
     vi.mocked(apiClient.getHealth).mockResolvedValue({
       status: 'healthy',
       healthy: true,
@@ -48,37 +48,8 @@ describe('Deployments', () => {
       artifact_integrity: 'Verified SHA-256 Manifest v1',
       all_passed: false,
       can_redeploy: false,
-      redeployment_block_reason: 'Automated cloud redeployment is permanently disabled until all required cloud infrastructure prerequisites are fulfilled.',
-      prerequisites: {
-        render_staging_client: {
-          key: 'render_staging_client',
-          label: 'Render Staging Client',
-          status: 'unconfigured',
-          badge: 'Unconfigured (Disabled)',
-          reason: 'Missing RENDER_API_KEY, RENDER_STAGING_SERVICE_ID, or RENDER_TARGET_ENVIRONMENT is not set to staging.',
-        },
-        remote_durable_store: {
-          key: 'remote_durable_store',
-          label: 'Remote Durable Store',
-          status: 'unconfigured',
-          badge: 'Unconfigured (Local Filesystem Only)',
-          reason: 'No remote durable object storage provider (e.g. S3, Cloudflare R2, GCS) configured.',
-        },
-        independent_live_verifier: {
-          key: 'independent_live_verifier',
-          label: 'Independent Live Verifier',
-          status: 'unconfigured',
-          badge: 'Unconfigured (Local Probes Only)',
-          reason: 'No independent post-deployment verification probe configured.',
-        },
-        operator_authorization: {
-          key: 'operator_authorization',
-          label: 'Operator Authorization',
-          status: 'blocked',
-          badge: 'Policy Blocked (403)',
-          reason: 'Operator authorization policy is unconfigured.',
-        },
-      },
+      redeployment_block_reason: 'Automated cloud redeployment is permanently disabled.',
+      prerequisites: {},
     });
 
     render(<Deployments />);
@@ -87,6 +58,8 @@ describe('Deployments', () => {
       expect(screen.getByText('Current Serving Deployment')).toBeTruthy();
       expect(screen.getByText('candidate-20261009T061233Z-7e4ec984')).toBeTruthy();
       expect(screen.getByText('Loaded & Ready')).toBeTruthy();
+      expect(screen.getByText('Operational Threat & Model Attention Telemetry')).toBeTruthy();
+      expect(screen.getByText('Nominal · No Action Required')).toBeTruthy();
     });
 
     // Verify Cloud & Staging Integration Prerequisites section and cards are completely removed
@@ -96,10 +69,11 @@ describe('Deployments', () => {
     expect(screen.queryByText('Independent Live Verifier')).toBeNull();
     expect(screen.queryByText('Operator Authorization')).toBeNull();
 
-    const redeployBtn = screen.getByRole('button', { name: /Redeploy to Staging \(Disabled\)/i });
-    expect(redeployBtn.hasAttribute('disabled')).toBe(true);
-    expect(screen.getByText(/permanently disabled/i)).toBeTruthy();
-    expect(screen.getByText('Nominal · No Action Required')).toBeTruthy();
+    // Verify Staging Redeployment Control and Deployment Architecture Note are removed
+    expect(screen.queryByText('Staging Redeployment Control')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Redeploy to Staging/i })).toBeNull();
+    expect(screen.queryByText(/Candidate Promotion vs\. Cloud Redeployment/i)).toBeNull();
+    expect(screen.queryByText(/Deployment Architecture Note:/i)).toBeNull();
   });
 
   it('renders backend-derived environment and routing status dynamically', async () => {
@@ -127,16 +101,8 @@ describe('Deployments', () => {
       artifact_integrity: 'Verified SHA-256 Manifest v1',
       all_passed: false,
       can_redeploy: false,
-      redeployment_block_reason: 'Automated cloud redeployment is permanently disabled until all required cloud infrastructure prerequisites are fulfilled.',
-      prerequisites: {
-        render_staging_client: {
-          key: 'render_staging_client',
-          label: 'Render Staging Client',
-          status: 'configured_unverified',
-          badge: 'Configured (Unverified)',
-          reason: 'Render staging credentials present in environment but connection has not been verified against the Render API.',
-        },
-      },
+      redeployment_block_reason: 'Automated cloud redeployment is permanently disabled.',
+      prerequisites: {},
     });
 
     render(<Deployments />);
@@ -147,6 +113,7 @@ describe('Deployments', () => {
     });
 
     expect(screen.queryByText('Cloud & Staging Integration Prerequisites')).toBeNull();
+    expect(screen.queryByText('Staging Redeployment Control')).toBeNull();
   });
 
   it('displays attention recommended status with probabilistic inference disclaimer when attacks are detected', async () => {
@@ -174,7 +141,7 @@ describe('Deployments', () => {
       artifact_integrity: 'Verified SHA-256 Manifest v1',
       all_passed: false,
       can_redeploy: false,
-      redeployment_block_reason: 'Automated cloud redeployment is permanently disabled until all required cloud infrastructure prerequisites are fulfilled.',
+      redeployment_block_reason: 'Automated cloud redeployment is permanently disabled.',
       prerequisites: {},
     });
     vi.mocked(apiClient.getPredictionHistory).mockResolvedValue([
@@ -208,12 +175,10 @@ describe('Deployments', () => {
       expect(screen.getByText('Attention Recommended · Potential Threat Detected')).toBeTruthy();
       expect(screen.getByText('1 flows (Probabilistic Inference)')).toBeTruthy();
       expect(screen.getByText(/model classification is a probabilistic inference/i)).toBeTruthy();
-      // Button must remain disabled fail-closed
-      const redeployBtn = screen.getByRole('button', { name: /Redeploy to Staging \(Disabled\)/i });
-      expect(redeployBtn.hasAttribute('disabled')).toBe(true);
     });
 
     expect(screen.queryByText('Cloud & Staging Integration Prerequisites')).toBeNull();
+    expect(screen.queryByText('Staging Redeployment Control')).toBeNull();
   });
 
   it('handles backend failure gracefully and provides retry', async () => {

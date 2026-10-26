@@ -225,51 +225,13 @@ export const Deployments: React.FC = () => {
             >
               {hasAttentionTrigger ? (
                 <span>
-                  <strong>⚠️ Model Attention Trigger Active:</strong> Telemetry indicates incoming network flows classified as attacks ({attackPredictions}) or active drift/system alerts ({activeAlerts}). Note that <strong>model classification is a probabilistic inference</strong> based on incoming feature vectors, not a ground-truth confirmation. Operator investigation and label verification are recommended before triggering candidate retraining. Note that cloud staging redeployment remains permanently disabled until cloud infrastructure prerequisites and operator authorization policies are configured.
+                  <strong>⚠️ Model Attention Trigger Active:</strong> Telemetry indicates incoming network flows classified as attacks ({attackPredictions}) or active drift/system alerts ({activeAlerts}). Note that <strong>model classification is a probabilistic inference</strong> based on incoming feature vectors, not a ground-truth confirmation. Operator investigation and label verification in the dashboard are recommended before evaluating candidate retraining in the Retraining Center.
                 </span>
               ) : (
                 <span>
-                  <strong>✅ Operational Baseline Stable:</strong> Telemetry indicates normal baseline operation across observed prediction flows. No network intrusion predicted or verified, and no statistical drift detected. Candidate retraining or cloud redeployment is not warranted by current telemetry.
+                  <strong>✅ Operational Baseline Stable:</strong> Telemetry indicates normal baseline operation across observed prediction flows. No network intrusion predicted or verified, and no statistical drift detected. Candidate retraining or redeployment is not warranted by current telemetry.
                 </span>
               )}
-            </div>
-          </div>
-
-          <div className="panel-section">
-            <div className="section-head action-head">
-              <div>
-                <h3>Staging Redeployment Control</h3>
-                <p className="page-description">
-                  {deploymentStatus?.redeployment_block_reason ||
-                    'Automated cloud redeployment is permanently disabled until all required cloud infrastructure prerequisites are fulfilled and operator authorization is configured.'}
-                </p>
-              </div>
-              <button
-                className="btn btn-secondary"
-                type="button"
-                disabled
-                title={
-                  deploymentStatus?.redeployment_block_reason ||
-                  'Automated cloud redeployment is permanently disabled until all required cloud infrastructure prerequisites are fulfilled and operator authorization is configured.'
-                }
-              >
-                Redeploy to Staging (Disabled)
-              </button>
-            </div>
-            <p className="status-note" style={{ marginTop: '8px', fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
-              ℹ <strong>Candidate Promotion vs. Cloud Redeployment:</strong> Local candidate promotion is managed separately in the Retraining Center using local filesystem artifacts and direct FastAPI reload. Cloud staging redeployment requires remote infrastructure authorization and verified cloud deployment pipelines.
-            </p>
-          </div>
-
-          <div className="info-panel" role="status">
-            <div>
-              <strong>Deployment Architecture Note:</strong> Local candidate promotion stages artifacts on the local filesystem and reloads the local FastAPI service. Cloud redeployment requires:
-              <ul style={{ margin: '8px 0 0 20px', padding: 0 }}>
-                <li>A configured Render staging service ID and API key (<code>RENDER_STAGING_SERVICE_ID</code>, <code>RENDER_API_KEY</code>)</li>
-                <li>A durable remote artifact store (e.g. S3/GCS bucket) replacing local volume storage</li>
-                <li>An independent post-deploy polling worker and live model version/checksum verifier</li>
-                <li>An approved operator authorization policy for deployment actions</li>
-              </ul>
             </div>
           </div>
         </>

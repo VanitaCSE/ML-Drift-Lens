@@ -537,20 +537,7 @@ function PredictionsPanel({
     <SectionCard title="Recent predictions" eyebrow="Inference activity" badge={badge} badgeTone={badgeTone} id="recent-predictions">
       <SectionState loading={loading} error={error} onRetry={onRetry}>
         {isDemo && (
-          <div
-            className="demo-inference-notice"
-            role="status"
-            style={{
-              marginBottom: '12px',
-              padding: '10px 14px',
-              borderRadius: '6px',
-              background: 'rgba(245, 158, 11, 0.08)',
-              border: '1px solid rgba(245, 158, 11, 0.25)',
-              fontSize: '0.825rem',
-              color: 'var(--color-text, #e2e8f0)',
-              lineHeight: 1.45,
-            }}
-          >
+          <div className="demo-inference-notice" role="status">
             <strong>🔶 Synthetic Demonstration Inferences:</strong> The 4 records below (<code>sim-req-901</code> to <code>sim-req-904</code>) are synthetic examples demonstrating normal and attack traffic patterns with simulated latency and confidence scores. They do not represent genuine production network traffic or database records.
           </div>
         )}
