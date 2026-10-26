@@ -193,6 +193,90 @@ export const ModelEvaluation: React.FC = () => {
             )}
           </div>
 
+          {/* Canonical Benchmark Holdout Evaluation & Confusion Matrix */}
+          <div className="panel-section">
+            <div className="section-head">
+              <h3>Canonical NSL-KDD Holdout Benchmark (22,544 Samples)</h3>
+              <span className="badge-pill subtle">Gold Standard Test Split</span>
+            </div>
+            <p className="page-description">
+              Official test holdout evaluation (<code>KDDTest+.txt</code>, SHA-256: <code>fa46b0...</code>) containing 17 novel zero-day attack classes not present in the training set.
+            </p>
+
+            <div className="detail-grid compact-grid" style={{ marginBottom: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
+              <div className="detail-item">
+                <span>Accuracy</span>
+                <strong>79.53%</strong>
+              </div>
+              <div className="detail-item">
+                <span>F1 Score</span>
+                <strong>78.64%</strong>
+              </div>
+              <div className="detail-item">
+                <span>Precision</span>
+                <strong>96.84%</strong>
+              </div>
+              <div className="detail-item">
+                <span>Recall (Sensitivity)</span>
+                <strong>66.20%</strong>
+              </div>
+              <div className="detail-item">
+                <span>ROC-AUC</span>
+                <strong>0.9658</strong>
+              </div>
+              <div className="detail-item">
+                <span>Holdout Size</span>
+                <strong>22,544 rows</strong>
+              </div>
+            </div>
+
+            <div className="confusion-matrix-box" style={{ maxWidth: '640px', marginBottom: '16px' }}>
+              <h5>Holdout Confusion Matrix</h5>
+              <table className="cm-table">
+                <thead>
+                  <tr>
+                    <th className="cm-header">Actual \ Predicted</th>
+                    <th className="cm-header">Predicted Normal (0)</th>
+                    <th className="cm-header">Predicted Attack (1)</th>
+                    <th className="cm-header">Class Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th className="cm-header">Actual Normal (0)</th>
+                    <td className="cm-cell-correct">
+                      <strong>9,434</strong>
+                      <span style={{ fontSize: '0.7rem', display: 'block' }}>True Negatives (97.1%)</span>
+                    </td>
+                    <td className="cm-cell-error">
+                      <strong>277</strong>
+                      <span style={{ fontSize: '0.7rem', display: 'block' }}>False Positives (2.9%)</span>
+                    </td>
+                    <td><strong>9,711</strong></td>
+                  </tr>
+                  <tr>
+                    <th className="cm-header">Actual Attack (1)</th>
+                    <td className="cm-cell-error">
+                      <strong>4,337</strong>
+                      <span style={{ fontSize: '0.7rem', display: 'block' }}>False Negatives (33.8%)</span>
+                    </td>
+                    <td className="cm-cell-correct">
+                      <strong>8,496</strong>
+                      <span style={{ fontSize: '0.7rem', display: 'block' }}>True Positives (66.2%)</span>
+                    </td>
+                    <td><strong>12,833</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div className="provenance-citation-box">
+              <strong>Benchmark Reference:</strong>
+              <em> M. Tavallaee, E. Bagheri, W. Lu, and A. Ghorbani, “A Detailed Analysis of the KDD CUP 99 Data Set,” Second IEEE CISDA, 2009.</em>
+              Canadian Institute for Cybersecurity (CIC) / University of New Brunswick (UNB).
+            </div>
+          </div>
+
           {/* Safety Gates Section */}
           <div className="panel-section">
             <div className="section-head">

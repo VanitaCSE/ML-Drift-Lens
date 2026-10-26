@@ -45,6 +45,9 @@ function createApp({ databasePool = pool, env = process.env, emailService = defa
   const retrainingRoutes = require("./routes/retrainingRoutes");
   app.use("/api/retraining", retrainingRoutes);
 
+  const benchmarkRoutes = require("./routes/benchmarkRoutes");
+  app.use("/api/benchmark", benchmarkRoutes);
+
   // Strict API 404 handler - never return HTML for unhandled API requests
   app.use("/api", (req, res) => {
     res.status(404).json({

@@ -105,6 +105,41 @@ export const ModelRegistry: React.FC = () => {
 
           <div className="panel-section">
             <div className="section-head">
+              <h3>Benchmark Provenance &amp; Holdout Verification</h3>
+              <span className="badge-pill subtle">Tavallaee et al. 2009 Reference</span>
+            </div>
+            <p className="page-description" style={{ marginBottom: '16px' }}>
+              Gold-standard validation and test benchmarks evaluated against canonical NSL-KDD dataset distributions (Canadian Institute for Cybersecurity / UNB).
+            </p>
+            <div className="detail-grid compact-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+              <div className="detail-item" style={{ borderLeft: '3px solid var(--color-success, #16a34a)' }}>
+                <span>Validation Split (In-Distribution)</span>
+                <strong>99.90% F1 Score</strong>
+                <small style={{ color: 'var(--color-text-muted)' }}>25,195 rows (20% stratified KDDTrain+ split)</small>
+              </div>
+              <div className="detail-item" style={{ borderLeft: '3px solid var(--color-primary, #3b82f6)' }}>
+                <span>Canonical Test Holdout (KDDTest+)</span>
+                <strong>78.64% F1 &bull; 79.53% Acc</strong>
+                <small style={{ color: 'var(--color-text-muted)' }}>22,544 rows &bull; 96.84% Prec &bull; 66.20% Rec &bull; 0.9658 AUC</small>
+              </div>
+              <div className="detail-item">
+                <span>Training Baseline</span>
+                <strong>KDDTrain+.txt (125,973 rows)</strong>
+                <small style={{ color: 'var(--color-text-muted)' }}>41 features &bull; 2 binary target classes</small>
+              </div>
+              <div className="detail-item">
+                <span>Zero-Day Attack Generalization</span>
+                <strong>17 Novel Attacks in Test</strong>
+                <small style={{ color: 'var(--color-text-muted)' }}>snmpgetattack, mailbomb, processtable, udpstorm</small>
+              </div>
+            </div>
+            <p className="table-caption-legend" style={{ marginTop: '12px', fontSize: '0.825rem', color: 'var(--color-text-muted)' }}>
+              ℹ <strong>Architectural Note:</strong> The high validation F1 (99.9%) demonstrates strong in-distribution fitting on known attacks (DoS, Probe), while the canonical holdout F1 (78.6%) demonstrates realistic generalization when encountering previously unseen attack signatures in production traffic.
+            </p>
+          </div>
+
+          <div className="panel-section">
+            <div className="section-head">
               <h3>Registered Model Versions</h3>
             </div>
 

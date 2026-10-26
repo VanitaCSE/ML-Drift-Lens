@@ -2355,3 +2355,396 @@ a {
 .btn-table-change:hover {
   color: var(--text, #f9fafb);
 }
+
+/* ==========================================================================
+   Multi-Source Monitoring & Data Source Badges
+   ========================================================================== */
+
+.data-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  line-height: 1.2;
+}
+
+.data-source-badge::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.data-source-badge.badge-production {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.data-source-badge.badge-production::before {
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+
+.data-source-badge.badge-benchmark {
+  background: rgba(99, 102, 241, 0.12);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+}
+.data-source-badge.badge-benchmark::before {
+  background: #818cf8;
+}
+
+.data-source-badge.badge-demo {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+.data-source-badge.badge-demo::before {
+  background: #fbbf24;
+}
+
+/* Environment / Mode Switcher in Dashboard Header */
+.dashboard-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: var(--color-surface-strong, #1f2937);
+  border: 1px solid var(--line, #374151);
+  border-radius: var(--radius-md, 8px);
+  padding: 3px;
+  gap: 2px;
+}
+
+.btn-mode {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm, 6px);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted, #9ca3af);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-mode:hover {
+  color: var(--text, #f9fafb);
+}
+
+.btn-mode.active {
+  background: var(--color-surface, #111827);
+  color: var(--text, #f9fafb);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.btn-mode.active.mode-production {
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.btn-mode.active.mode-demo {
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.demo-banner-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--radius-md, 8px);
+  margin-bottom: 20px;
+  font-size: 0.85rem;
+  color: #fbbf24;
+}
+
+.demo-banner-alert strong {
+  color: #fef3c7;
+}
+
+/* Evaluation & Benchmark Arena */
+.evaluation-readiness-arena {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 900px) {
+  .evaluation-readiness-arena {
+    grid-template-columns: 1fr;
+  }
+}
+
+.readiness-card,
+.benchmark-card {
+  background: var(--color-surface, #111827);
+  border: 1px solid var(--line, #374151);
+  border-radius: var(--radius-md, 10px);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.readiness-card-header,
+.benchmark-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.readiness-card-title,
+.benchmark-card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text, #f9fafb);
+}
+
+.readiness-meter-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.readiness-meter-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #9ca3af);
+}
+
+.readiness-meter-track {
+  width: 100%;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.readiness-meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #10b981, #06b6d4);
+  transition: width 0.3s ease;
+}
+
+.readiness-meter-fill.warning {
+  background: linear-gradient(90deg, #f59e0b, #ef4444);
+}
+
+.benchmark-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .benchmark-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.benchmark-stat-pill {
+  background: var(--color-surface-subtle, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-sm, 6px);
+  padding: 8px 10px;
+  text-align: center;
+}
+
+.benchmark-stat-pill span {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--color-text-muted, #9ca3af);
+  margin-bottom: 2px;
+}
+
+.benchmark-stat-pill strong {
+  font-size: 1.1rem;
+  color: var(--text, #f9fafb);
+}
+
+.provenance-citation-box {
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: var(--radius-sm, 6px);
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-soft, #d1d5db);
+}
+
+.provenance-citation-box strong {
+  color: #c7d2fe;
+}
+
+/* Confusion Matrix Box */
+.confusion-matrix-box {
+  margin-top: 10px;
+}
+
+.confusion-matrix-box h5 {
+  margin: 0 0 8px 0;
+  font-size: 0.85rem;
+  color: var(--text-soft, #9ca3af);
+}
+
+.cm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.cm-table th,
+.cm-table td {
+  padding: 8px;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.1));
+}
+
+.cm-header {
+  background: var(--color-surface-strong, rgba(255, 255, 255, 0.05));
+  font-size: 0.72rem;
+  color: var(--color-text-muted, #9ca3af);
+  text-transform: uppercase;
+}
+
+.cm-cell-correct {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  font-weight: 700;
+}
+
+.cm-cell-error {
+  background: rgba(239, 68, 68, 0.08);
+  color: #f87171;
+  font-weight: 700;
+}
+
+/* Operational Distributions Panel */
+.distributions-arena {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 800px) {
+  .distributions-arena {
+    grid-template-columns: 1fr;
+  }
+}
+
+.distribution-card {
+  background: var(--color-surface, #111827);
+  border: 1px solid var(--line, #374151);
+  border-radius: var(--radius-md, 10px);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.distribution-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.distribution-card-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text, #f9fafb);
+}
+
+.latency-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.latency-stat-box {
+  background: var(--color-surface-subtle, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.06));
+  border-radius: var(--radius-sm, 6px);
+  padding: 8px;
+  text-align: center;
+}
+
+.latency-stat-box span {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--color-text-muted, #9ca3af);
+}
+
+.latency-stat-box strong {
+  font-size: 0.95rem;
+  color: var(--text, #f9fafb);
+}
+
+.class-split-bar {
+  display: flex;
+  height: 22px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.class-split-normal {
+  background: #10b981;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #064e3b;
+  transition: width 0.3s ease;
+}
+
+.class-split-attack {
+  background: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  transition: width 0.3s ease;
+}
+
+.class-legend-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--color-text-muted, #9ca3af);
+}
+
+.class-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.class-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.class-legend-dot.normal { background: #10b981; }
+.class-legend-dot.attack { background: #ef4444; }

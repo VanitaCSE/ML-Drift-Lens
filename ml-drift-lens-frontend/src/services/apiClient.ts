@@ -1,3 +1,5 @@
+import { CANONICAL_BENCHMARK_DATA, DEFAULT_DEMO_SCENARIO } from './benchmarkData';
+
 /**
  * API Client for Network Intrusion Detection Backend
  * Communicates with Node.js backend at /api/*
@@ -166,6 +168,86 @@ export interface RetrainingJobRecord {
   candidate_precision?: number | null;
   candidate_recall?: number | null;
   promotion_reason?: string | null;
+}
+
+export interface BenchmarkMetrics {
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1: number;
+  roc_auc?: number;
+}
+
+export interface ConfusionMatrix {
+  true_negatives: number;
+  false_positives: number;
+  false_negatives: number;
+  true_positives: number;
+}
+
+export interface BenchmarkEvaluationSplit {
+  dataset_file: string;
+  sha256: string;
+  total_samples: number;
+  class_distribution: {
+    normal: number;
+    attack: number;
+    normal_pct: number;
+    attack_pct: number;
+  };
+  metrics: BenchmarkMetrics;
+  confusion_matrix: ConfusionMatrix;
+  evaluation_notes: string;
+}
+
+export interface BenchmarkData {
+  benchmark_name: string;
+  dataset_source: string;
+  dataset_url: string;
+  citation: string;
+  model_id: string;
+  model_version: string;
+  model_type: string;
+  feature_count: number;
+  mlflow_run_id: string;
+  training_timestamp: string;
+  test_holdout: BenchmarkEvaluationSplit;
+  validation_split: BenchmarkEvaluationSplit;
+  drift_baseline: {
+    metric: string;
+    threshold: number;
+    warning_threshold: number;
+    minimum_samples: number;
+    reference_dataset: string;
+    reference_sample_count: number;
+    monitored_features: string[];
+  };
+}
+
+export interface DemoScenarioData {
+  is_simulation: true;
+  data_source: 'demo_simulation';
+  scenario_name: string;
+  description: string;
+  notice: string;
+  metrics: MonitoringMetrics;
+  drift_history: DriftScore[];
+  alerts: AlertRecord[];
+  retraining_jobs: RetrainingJobRecord[];
+  latency_distribution: {
+    min_ms: number;
+    median_ms: number;
+    p95_ms: number;
+    p99_ms: number;
+    max_ms: number;
+  };
+  class_distribution: {
+    total: number;
+    normal_count: number;
+    normal_pct: number;
+    attack_count: number;
+    attack_pct: number;
+  };
 }
 
 export interface PaginationOptions {
@@ -451,5 +533,23 @@ export const apiClient = {
 
   async getRetrainingJob(jobId: number): Promise<RetrainingJobRecord> {
     return getJson<RetrainingJobRecord>(`/retraining/${encodeURIComponent(jobId)}`);
+  },
+
+  async getBenchmarkData(): Promise<BenchmarkData> {
+    try {
+      const res = await getJson<{ success: boolean; benchmark: BenchmarkData }>('/benchmark');
+      return res.benchmark || CANONICAL_BENCHMARK_DATA;
+    } catch {
+      return CANONICAL_BENCHMARK_DATA;
+    }
+  },
+
+  async getDemoScenario(): Promise<DemoScenarioData> {
+    try {
+      const res = await getJson<{ success: boolean; scenario: DemoScenarioData }>('/benchmark/demo');
+      return res.scenario || DEFAULT_DEMO_SCENARIO;
+    } catch {
+      return DEFAULT_DEMO_SCENARIO;
+    }
   },
 };

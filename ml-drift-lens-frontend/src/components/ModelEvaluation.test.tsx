@@ -59,6 +59,9 @@ describe('ModelEvaluation', () => {
     });
 
     expect(screen.getByText(/Strict F1 superiority/i)).toBeTruthy();
+    expect(screen.getByText('Canonical NSL-KDD Holdout Benchmark (22,544 Samples)')).toBeTruthy();
+    expect(screen.getByText('Holdout Confusion Matrix')).toBeTruthy();
+    expect(screen.getByText('9,434')).toBeTruthy();
   });
 
   it('renders empty evaluation state when no candidate jobs have evaluation data', async () => {

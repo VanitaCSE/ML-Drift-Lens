@@ -136,6 +136,45 @@ export function DriftMonitoring() {
           </div>
         </>
       )}
+
+      {!loading && !error && (
+        <div className="panel-section" style={{ marginTop: '20px' }}>
+          <div className="section-head">
+            <h3>Drift Methodology &amp; PSI Baseline Protocol</h3>
+            <span className="badge-pill subtle">10 Decile Frequency Bins</span>
+          </div>
+          <p className="page-description" style={{ marginBottom: '16px' }}>
+            Continuous feature distribution tracking using Population Stability Index (PSI) computed against the training baseline (<code>KDDTrain+.txt</code>, 125,973 samples).
+          </p>
+
+          <div className="detail-grid compact-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', marginBottom: '16px' }}>
+            <div className="detail-item" style={{ borderLeft: '3px solid var(--color-success, #16a34a)' }}>
+              <span>Stable (No Drift)</span>
+              <strong>PSI &lt; 0.10</strong>
+              <small style={{ color: 'var(--color-text-muted)' }}>Production distribution closely matches baseline</small>
+            </div>
+            <div className="detail-item" style={{ borderLeft: '3px solid var(--color-warning, #f59e0b)' }}>
+              <span>Moderate Drift</span>
+              <strong>0.10 &le; PSI &lt; 0.20</strong>
+              <small style={{ color: 'var(--color-text-muted)' }}>Distribution shift detected; flagged for review</small>
+            </div>
+            <div className="detail-item" style={{ borderLeft: '3px solid var(--color-danger, #ef4444)' }}>
+              <span>Actionable Shift</span>
+              <strong>PSI &ge; 0.20 (Threshold)</strong>
+              <small style={{ color: 'var(--color-text-muted)' }}>Severe shift; triggers automated retraining</small>
+            </div>
+            <div className="detail-item">
+              <span>Sample Requirement</span>
+              <strong>Min 100 Observations</strong>
+              <small style={{ color: 'var(--color-text-muted)' }}>Guarantees statistical power &amp; prevents bin collapse</small>
+            </div>
+          </div>
+
+          <div className="table-caption-legend" style={{ fontSize: '0.825rem', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+            ℹ <strong>Monitored Continuous Telemetry:</strong> Traffic features evaluated across 10 decile probability bins include <code>src_bytes</code>, <code>dst_bytes</code>, <code>duration</code>, <code>count</code>, <code>srv_count</code>, <code>diff_srv_rate</code>, <code>same_srv_rate</code>, and <code>dst_host_srv_count</code>.
+          </div>
+        </div>
+      )}
     </div>
   );
 }

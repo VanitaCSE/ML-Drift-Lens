@@ -13,6 +13,8 @@ export const PredictionHistory: React.FC = () => {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [filterPrediction, setFilterPrediction] = useState<'all' | 'normal' | 'attack'>('all');
+  const [filterLabel, setFilterLabel] = useState<'all' | 'labeled' | 'unlabeled'>('all');
 
   const handleLabel = async (id: number, label: 'normal' | 'attack') => {
     try {
@@ -59,6 +61,23 @@ export const PredictionHistory: React.FC = () => {
       setPage(0);
     }
   };
+
+  const filteredPredictions = predictions.filter((item) => {
+    if (filterPrediction === 'normal' && item.prediction.toLowerCase() !== 'normal') return false;
+    if (filterPrediction === 'attack' && item.prediction.toLowerCase() !== 'attack') return false;
+    if (filterLabel === 'labeled' && !item.actual_label) return false;
+    if (filterLabel === 'unlabeled' && Boolean(item.actual_label)) return false;
+    return true;
+  });
+
+  const verifiedCount = predictions.filter((p) => Boolean(p.actual_label)).length;
+  const latencies = predictions
+    .map((p) => p.inference_latency_ms)
+    .filter((ms): ms is number => typeof ms === 'number' && Number.isFinite(ms))
+    .sort((a, b) => a - b);
+  const medianLatency = latencies.length > 0
+    ? latencies[Math.floor(latencies.length / 2)].toFixed(1)
+    : null;
 
   return (
     <div className="page-shell page-shell-tight">
@@ -113,22 +132,89 @@ export const PredictionHistory: React.FC = () => {
                 <span>{actionError}</span>
               </div>
             )}
-            <div className="table-wrap">
-              <table className="data-table" aria-label="Prediction history table">
-                <thead>
-                  <tr>
-                    <th scope="col">Timestamp</th>
-                    <th scope="col">Prediction</th>
-                    <th scope="col">Class</th>
-                    <th scope="col" className="numeric-col">Confidence</th>
-                    <th scope="col" className="numeric-col">Inference Latency</th>
-                    <th scope="col">Model Version</th>
-                    <th scope="col">Actual Label</th>
-                    <th scope="col">Request ID</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {predictions.map((pred) => (
+
+            <div className="history-telemetry-banner" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+              <div className="stat-card" style={{ padding: '12px 16px', background: 'var(--color-bg-subtle, #f8fafc)', borderRadius: '8px', border: '1px solid var(--color-border, #e2e8f0)' }}>
+                <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--color-text-muted, #64748b)', fontWeight: 600 }}>Page Records</span>
+                <strong style={{ display: 'block', fontSize: '1.25rem', marginTop: '4px' }}>{predictions.length} inferences</strong>
+              </div>
+              <div className="stat-card" style={{ padding: '12px 16px', background: 'var(--color-bg-subtle, #f8fafc)', borderRadius: '8px', border: '1px solid var(--color-border, #e2e8f0)' }}>
+                <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--color-text-muted, #64748b)', fontWeight: 600 }}>Ground Truth Labeled</span>
+                <strong style={{ display: 'block', fontSize: '1.25rem', marginTop: '4px' }}>{verifiedCount} / {predictions.length} verified</strong>
+              </div>
+              <div className="stat-card" style={{ padding: '12px 16px', background: 'var(--color-bg-subtle, #f8fafc)', borderRadius: '8px', border: '1px solid var(--color-border, #e2e8f0)' }}>
+                <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--color-text-muted, #64748b)', fontWeight: 600 }}>Median Latency</span>
+                <strong style={{ display: 'block', fontSize: '1.25rem', marginTop: '4px' }}>{medianLatency ? `${medianLatency} ms` : 'N/A'}</strong>
+              </div>
+            </div>
+
+            <div className="history-filter-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', marginBottom: '14px', padding: '10px 14px', background: 'var(--color-bg-subtle, #f8fafc)', borderRadius: '8px', border: '1px solid var(--color-border, #e2e8f0)' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-muted, #64748b)' }}>Filters:</span>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted, #64748b)' }}>Class:</span>
+                {(['all', 'normal', 'attack'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={`btn-mode ${filterPrediction === mode ? 'active' : ''}`}
+                    style={{ padding: '3px 10px', fontSize: '0.75rem', borderRadius: '4px', textTransform: 'capitalize' }}
+                    onClick={() => setFilterPrediction(mode)}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginLeft: '12px' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted, #64748b)' }}>Ground Truth:</span>
+                {(['all', 'labeled', 'unlabeled'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={`btn-mode ${filterLabel === mode ? 'active' : ''}`}
+                    style={{ padding: '3px 10px', fontSize: '0.75rem', borderRadius: '4px', textTransform: 'capitalize' }}
+                    onClick={() => setFilterLabel(mode)}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+              {(filterPrediction !== 'all' || filterLabel !== 'all') && (
+                <button
+                  type="button"
+                  className="btn-table-change"
+                  style={{ marginLeft: 'auto', fontSize: '0.75rem' }}
+                  onClick={() => {
+                    setFilterPrediction('all');
+                    setFilterLabel('all');
+                  }}
+                >
+                  Reset filters
+                </button>
+              )}
+            </div>
+
+            {filteredPredictions.length === 0 ? (
+              <div className="empty-panel" role="status" style={{ padding: '24px 16px' }}>
+                <strong>No predictions match the active filter criteria.</strong>
+                <span>Try clearing the filters to view all page records.</span>
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table" aria-label="Prediction history table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Timestamp</th>
+                      <th scope="col">Prediction</th>
+                      <th scope="col">Class</th>
+                      <th scope="col" className="numeric-col">Confidence</th>
+                      <th scope="col" className="numeric-col">Inference Latency</th>
+                      <th scope="col">Model Version</th>
+                      <th scope="col">Actual Label</th>
+                      <th scope="col">Request ID</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPredictions.map((pred) => (
                     <tr key={pred.id}>
                       <td className="timestamp-cell">{new Date(pred.timestamp).toLocaleString()}</td>
                       <td>
@@ -206,6 +292,7 @@ export const PredictionHistory: React.FC = () => {
                 </tbody>
               </table>
             </div>
+          )}
             <p className="table-caption-legend" style={{ marginTop: '12px', fontSize: '0.825rem', color: 'var(--color-text-muted)' }}>
               ℹ <strong>Class mapping legend:</strong> <code>0 = normal</code> (benign network traffic), <code>1 = attack</code> (network intrusion). In NSL-KDD binary classification, 0 is the negative baseline class and 1 is the positive attack class.
             </p>

@@ -62,4 +62,13 @@ describe('DriftMonitoring', () => {
     await waitFor(() => expect(apiClient.getDriftHistory).toHaveBeenLastCalledWith({ limit: 21, offset: 20 }));
     expect(await screen.findByText('No drift records have been recorded.')).toBeTruthy();
   });
+
+  it('renders drift methodology and PSI baseline protocol details', async () => {
+    vi.mocked(apiClient.getDriftHistory).mockResolvedValueOnce([]);
+
+    render(<DriftMonitoring />);
+    expect(await screen.findByText('Drift Methodology & PSI Baseline Protocol')).toBeTruthy();
+    expect(screen.getByText('10 Decile Frequency Bins')).toBeTruthy();
+    expect(screen.getByText('Min 100 Observations')).toBeTruthy();
+  });
 });

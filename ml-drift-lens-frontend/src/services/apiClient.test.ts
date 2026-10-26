@@ -262,4 +262,36 @@ describe('API Client', () => {
     const [, options] = (globalThis.fetch as any).mock.calls.at(-1);
     expect(new Headers(options.headers).get('Content-Type')).toBe('application/json');
   });
+
+  it('should fetch benchmark data successfully', async () => {
+    const mockBenchmark = {
+      benchmark_name: 'NSL-KDD Canonical Benchmark',
+      model_id: 'nsl-kdd-baseline',
+      feature_count: 41,
+    };
+    (globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, benchmark: mockBenchmark }),
+    });
+
+    const result = await apiClient.getBenchmarkData();
+    expect(result.benchmark_name).toBe('NSL-KDD Canonical Benchmark');
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/benchmark', expect.anything());
+  });
+
+  it('should fetch demo scenario data successfully', async () => {
+    const mockScenario = {
+      is_simulation: true,
+      data_source: 'demo_simulation',
+      scenario_name: 'NSL-KDD Feature Drift',
+    };
+    (globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, scenario: mockScenario }),
+    });
+
+    const result = await apiClient.getDemoScenario();
+    expect(result.is_simulation).toBe(true);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/benchmark/demo', expect.anything());
+  });
 });

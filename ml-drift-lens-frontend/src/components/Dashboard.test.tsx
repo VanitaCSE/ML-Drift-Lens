@@ -18,6 +18,9 @@ vi.mock('../services/apiClient', () => ({
     getModels: vi.fn(),
     getRetrainingJobs: vi.fn(),
     getPredictionHistory: vi.fn(),
+    getBenchmarkData: vi.fn(),
+    getDemoScenario: vi.fn(),
+    labelPrediction: vi.fn(),
   },
 }));
 
@@ -41,6 +44,89 @@ function resolveEmptyDashboard() {
   mockedApiClient.getModels.mockResolvedValue([]);
   mockedApiClient.getRetrainingJobs.mockResolvedValue([]);
   mockedApiClient.getPredictionHistory.mockResolvedValue([]);
+  mockedApiClient.getBenchmarkData.mockResolvedValue({
+    benchmark_name: 'NSL-KDD Canonical Benchmark',
+    dataset_source: 'CIC / UNB',
+    dataset_url: 'https://www.unb.ca/cic/datasets/nsl.html',
+    citation: 'Tavallaee et al. 2009',
+    model_id: 'nsl-kdd-baseline',
+    model_version: 'nsl-kdd-validation-20260928',
+    model_type: 'xgboost',
+    feature_count: 41,
+    mlflow_run_id: 'e4b98d8c7484478a987bd5ce2cf35f56',
+    training_timestamp: '2026-09-28T12:48:06.164429+00:00',
+    test_holdout: {
+      dataset_file: 'KDDTest+.txt',
+      sha256: 'fa46b0935342616aa83b7c2578db355b6a7aaabbc492248172c7a1e8b7ab8f84',
+      total_samples: 22544,
+      class_distribution: { normal: 9711, attack: 12833, normal_pct: 43.08, attack_pct: 56.92 },
+      metrics: { accuracy: 0.7953, precision: 0.9684, recall: 0.6620, f1: 0.7864, roc_auc: 0.9658 },
+      confusion_matrix: { true_negatives: 9434, false_positives: 277, false_negatives: 4337, true_positives: 8496 },
+      evaluation_notes: 'Evaluated on canonical KDDTest+ holdout',
+    },
+    validation_split: {
+      dataset_file: 'KDDTrain+.txt',
+      sha256: '1b86d2f957b33082081bba410fe129b475efebcc13c9014c3f447c8271aadf95',
+      total_samples: 25195,
+      class_distribution: { normal: 13469, attack: 11726, normal_pct: 53.46, attack_pct: 46.54 },
+      metrics: { accuracy: 0.9990, precision: 0.9991, recall: 0.9988, f1: 0.9990 },
+      confusion_matrix: { true_negatives: 13459, false_positives: 10, false_negatives: 14, true_positives: 11712 },
+      evaluation_notes: 'Stratified validation split',
+    },
+    drift_baseline: {
+      metric: 'Population Stability Index (PSI)',
+      threshold: 0.20,
+      warning_threshold: 0.10,
+      minimum_samples: 100,
+      reference_dataset: 'KDDTrain+.txt',
+      reference_sample_count: 125973,
+      monitored_features: ['duration', 'src_bytes'],
+    },
+  });
+  mockedApiClient.getDemoScenario.mockResolvedValue({
+    is_simulation: true,
+    data_source: 'demo_simulation',
+    scenario_name: 'NSL-KDD Feature Drift',
+    description: 'Simulated drift scenario',
+    notice: 'DEMONSTRATION DATA ONLY',
+    metrics: {
+      total_prediction_count: 2450,
+      labeled_prediction_count: 500,
+      accuracy: 0.7953,
+      precision: 0.9684,
+      recall: 0.6620,
+      f1: 0.7864,
+      metrics_status: 'available',
+      model_id: 'nsl-kdd-baseline',
+      model_version: 'nsl-kdd-validation-20260928',
+      latest_prediction_timestamp: '2026-10-26T12:00:00Z',
+    },
+    drift_history: [
+      { id: 101, timestamp: '2026-10-26T11:00:00Z', score: 0.04, threshold: 0.20, status: 'normal', metric_type: 'PSI', model_id: 'nsl-kdd-baseline' },
+      { id: 102, timestamp: '2026-10-26T11:30:00Z', score: 0.25, threshold: 0.20, status: 'significant_drift', metric_type: 'PSI', model_id: 'nsl-kdd-baseline' },
+    ],
+    alerts: [
+      { id: 201, model_id: 'nsl-kdd-baseline', message: 'Simulated drift alert', status: 'resolved', timestamp: '2026-10-26T11:30:00Z', drift_score_id: 102 },
+    ],
+    retraining_jobs: [
+      {
+        id: 301,
+        model_id: 'nsl-kdd-baseline',
+        old_model_version: '0.1.0',
+        new_model_version: '0.2.0',
+        triggered_by: 'system',
+        status: 'deployed',
+        promoted: true,
+        candidate_f1: 0.8124,
+        incumbent_f1: 0.7864,
+        reload_status: 'success',
+        start_time: '2026-10-26T11:35:00Z',
+        end_time: '2026-10-26T11:45:00Z',
+      },
+    ],
+    latency_distribution: { min_ms: 2.1, median_ms: 4.3, p95_ms: 7.8, p99_ms: 12.4, max_ms: 18.2 },
+    class_distribution: { total: 2450, normal_count: 1380, normal_pct: 56.3, attack_count: 1070, attack_pct: 43.7 },
+  });
 }
 
 describe('Dashboard', () => {
@@ -274,5 +360,46 @@ describe('Dashboard', () => {
     await waitFor(() => expect(screen.getByText('Unable to load this section.')).toBeTruthy());
     expect(screen.getByText('No model versions available')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+  });
+
+  it('renders benchmark comparison card and allows toggling to demo mode', async () => {
+    render(<Dashboard />);
+    await waitFor(() => expect(screen.getByText('NSL-KDD Canonical Test Benchmark')).toBeTruthy());
+    expect(screen.getByText(/Evaluated on full/)).toBeTruthy();
+    expect(screen.getByText('Live Evaluation Readiness')).toBeTruthy();
+
+    // Toggle to Demo mode
+    const demoButton = screen.getByRole('button', { name: /Benchmark & Simulation/ });
+    act(() => {
+      demoButton.click();
+    });
+
+    expect(screen.getByText(/Demonstration Environment Active/)).toBeTruthy();
+    expect(screen.getByText(/Confusion Matrix/)).toBeTruthy();
+    expect(screen.getByText('9,434')).toBeTruthy(); // True Negatives
+    expect(screen.getByText('8,496')).toBeTruthy(); // True Positives
+  });
+
+  it('renders inference latency profile and traffic class balance', async () => {
+    mockedApiClient.getPredictionHistory.mockResolvedValue([
+      {
+        id: 1,
+        model_id: 'nsl-kdd-baseline',
+        model_version: 'v1.0',
+        preprocessing_version: 'v1',
+        input_features: '{}',
+        prediction: 'normal',
+        prediction_class: 0,
+        confidence: 0.99,
+        inference_latency_ms: 4.2,
+        request_id: 'req-1',
+        timestamp: '2026-10-25T12:00:00Z',
+      },
+    ]);
+
+    render(<Dashboard />);
+    await waitFor(() => expect(screen.getByText('Inference Latency Distribution')).toBeTruthy());
+    expect(screen.getByText('Predicted Traffic Class Balance')).toBeTruthy();
+    expect(screen.getAllByText(/4.2 ms/).length).toBeGreaterThanOrEqual(1);
   });
 });

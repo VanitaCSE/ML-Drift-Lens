@@ -64,6 +64,9 @@ describe('ModelRegistry', () => {
     });
 
     expect(screen.getByText(/Model registration, active state assignment/i)).toBeTruthy();
+    expect(screen.getByText('Benchmark Provenance & Holdout Verification')).toBeTruthy();
+    expect(screen.getByText(/Tavallaee et al\. 2009/i)).toBeTruthy();
+    expect(screen.getByText('99.90% F1 Score')).toBeTruthy();
   });
 
   it('truthfully renders empty state when no model versions are registered', async () => {
