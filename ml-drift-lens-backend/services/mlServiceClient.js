@@ -10,11 +10,15 @@ const https = require("https");
 const DEFAULT_ML_SERVICE_URL = "http://localhost:8000";
 
 function getMLServiceURL() {
-  return (process.env.ML_SERVICE_URL || DEFAULT_ML_SERVICE_URL).trim();
+  let url = (process.env.ML_SERVICE_URL || DEFAULT_ML_SERVICE_URL).trim();
+  if (!/^https?:\/\//i.test(url)) {
+    url = `https://${url}`;
+  }
+  return url.replace(/\/+$/, "");
 }
 
 function getMLServiceTimeout() {
-  return Number.parseInt(process.env.ML_SERVICE_TIMEOUT || "5000", 10);
+  return Number.parseInt(process.env.ML_SERVICE_TIMEOUT || "15000", 10);
 }
 
 function buildServiceURLCandidates() {
@@ -60,9 +64,13 @@ function makeMLServiceRequest(method, path, data = null) {
       const options = parseMLServiceURL(urlString);
       options.method = method;
       options.path = path;
+      const payload = data ? JSON.stringify(data) : null;
       options.headers = {
         "Content-Type": "application/json",
       };
+      if (payload) {
+        options.headers["Content-Length"] = Buffer.byteLength(payload);
+      }
 
       const transport = options.protocol === "https:" ? https : http;
       const req = transport.request(options, (res) => {
@@ -87,8 +95,10 @@ function makeMLServiceRequest(method, path, data = null) {
             }
           } catch (parseError) {
             reject({
-              statusCode: res.statusCode,
-              message: "Failed to parse ML service response",
+              statusCode: res.statusCode >= 400 ? res.statusCode : 502,
+              message: res.statusCode >= 400
+                ? `ML Service returned HTTP ${res.statusCode}`
+                : "Failed to parse ML service response",
               error: parseError.message,
             });
           }
@@ -128,8 +138,8 @@ function makeMLServiceRequest(method, path, data = null) {
         reject(connectionError);
       });
 
-      if (data) {
-        req.write(JSON.stringify(data));
+      if (payload) {
+        req.write(payload);
       }
 
       req.end();

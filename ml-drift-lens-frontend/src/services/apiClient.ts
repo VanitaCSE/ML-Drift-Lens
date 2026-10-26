@@ -219,10 +219,15 @@ async function apiFetch(path: string, init: RequestInit = {}) {
 async function responseError(response: Response, fallback: string) {
   const body = await response.json().catch(() => undefined) as {
     error?: string;
+    details?: string;
+    message?: string;
     code?: string;
   } | undefined;
+  const message = body?.details
+    ? `${body.error || fallback}: ${body.details}`
+    : (body?.error || body?.message || `${fallback}: ${response.statusText}`);
   return new ApiError(
-    body?.error || `${fallback}: ${response.statusText}`,
+    message,
     response.status,
     body?.code,
   );

@@ -47,7 +47,9 @@ services:
       - key: SESSION_COOKIE_SECURE
         value: "true"
       - key: ML_SERVICE_URL
-        value: http://ml-drift-lens-inference:8000
+        value: https://ml-drift-lens.onrender.com
+      - key: ML_SERVICE_TIMEOUT
+        value: "15000"
       - key: CORS_ORIGINS
         sync: false
       - key: REDIS_URL
