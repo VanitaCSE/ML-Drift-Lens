@@ -233,6 +233,11 @@ export const PredictionForm: React.FC<PredictionFormProps> = ({
         {error && (
           <div className="error-box" role="alert">
             <strong>Error:</strong> {error}
+            {(error.includes('502') || error.includes('waking from sleep') || error.includes('unavailable')) && (
+              <p style={{ marginTop: '8px', fontSize: '0.825rem', color: 'inherit', opacity: 0.9 }}>
+                💡 <strong>Cold-start advisory:</strong> The Python inference service is hosted on Render free tier and spins down when idle. If it was sleeping, it takes 30–50 seconds to initialize. You can click <strong>Retry model metadata</strong> above to re-check availability.
+              </p>
+            )}
           </div>
         )}
       </div>
