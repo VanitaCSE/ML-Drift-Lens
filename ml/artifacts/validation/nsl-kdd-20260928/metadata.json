@@ -1,0 +1,96 @@
+{
+  "model_id": "nsl-kdd-baseline",
+  "model_version": "nsl-kdd-validation-20260928",
+  "model_type": "xgboost",
+  "dataset_version": "1.0.0",
+  "feature_schema_version": "1.0.0",
+  "preprocessing_version": "preprocessing-v1",
+  "random_state": 42,
+  "num_features": 41,
+  "training_timestamp": "2026-09-28T12:48:06.164429+00:00",
+  "class_distribution": {
+    "training": {
+      "distribution": {
+        "0": 67343,
+        "1": 58630
+      },
+      "percentages": {
+        "0": 53.458280742698825,
+        "1": 46.54171925730117
+      }
+    },
+    "train_split": {
+      "distribution": {
+        "0": 53874,
+        "1": 46904
+      },
+      "percentages": {
+        "0": 53.45809601301872,
+        "1": 46.54190398698129
+      }
+    },
+    "validation": {
+      "distribution": {
+        "0": 13469,
+        "1": 11726
+      },
+      "percentages": {
+        "0": 53.459019646755316,
+        "1": 46.54098035324469
+      }
+    },
+    "test": {
+      "distribution": {
+        "0": 9711,
+        "1": 12833
+      },
+      "percentages": {
+        "0": 43.07576295244854,
+        "1": 56.92423704755145
+      }
+    }
+  },
+  "validation_metrics": {
+    "accuracy": 0.999047430045644,
+    "precision": 0.9991469032588296,
+    "recall": 0.9988060719768037,
+    "f1": 0.9989764585465711,
+    "confusion_matrix": [
+      [
+        13459,
+        10
+      ],
+      [
+        14,
+        11712
+      ]
+    ],
+    "roc_auc": 0.9999927376332816,
+    "true_negatives": 13459,
+    "false_positives": 10,
+    "false_negatives": 14,
+    "true_positives": 11712
+  },
+  "test_metrics": {
+    "accuracy": 0.795333569907736,
+    "precision": 0.9684258520460504,
+    "recall": 0.6620431699524663,
+    "f1": 0.7864482088308803,
+    "confusion_matrix": [
+      [
+        9434,
+        277
+      ],
+      [
+        4337,
+        8496
+      ]
+    ],
+    "roc_auc": 0.9658379124275125,
+    "true_negatives": 9434,
+    "false_positives": 277,
+    "false_negatives": 4337,
+    "true_positives": 8496
+  },
+  "mlflow_run_id": "e4b98d8c7484478a987bd5ce2cf35f56"
+}

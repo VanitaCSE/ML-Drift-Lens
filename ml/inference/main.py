@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 from pathlib import Path
 
 import uvicorn
@@ -49,8 +50,8 @@ def main(config: InferenceConfig | None = None) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ModelWatch Inference Service")
-    parser.add_argument("--host", default="127.0.0.1", help="Server host")
-    parser.add_argument("--port", type=int, default=8000, help="Server port")
+    parser.add_argument("--host", default=os.getenv("INFERENCE_HOST", "0.0.0.0"), help="Server host")
+    parser.add_argument("--port", type=int, default=int(os.getenv("PORT", os.getenv("INFERENCE_PORT", "8000"))), help="Server port")
     parser.add_argument("--log-level", default="INFO", help="Log level")
     parser.add_argument(
         "--model-path",

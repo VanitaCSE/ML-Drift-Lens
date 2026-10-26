@@ -1,3 +1,12 @@
+# Stage 1: Build Frontend Static Assets
+FROM node:22-bookworm-slim AS frontend-builder
+WORKDIR /build
+COPY ml-drift-lens-frontend/package*.json ./
+RUN npm ci
+COPY ml-drift-lens-frontend ./
+RUN npm run build
+
+# Stage 2: Backend Runtime
 FROM node:22-bookworm-slim
 
 ENV NODE_ENV=production
@@ -20,9 +29,12 @@ RUN npm ci --omit=dev
 
 COPY ml ./ml
 COPY ml-drift-lens-backend ./ml-drift-lens-backend
+COPY --from=frontend-builder /build/dist ./ml-drift-lens-frontend/dist
 
 RUN mkdir -p /app/ml/artifacts/candidates /app/ml/artifacts/.promotion-backups \
-	&& chown 1000:1000 /app/ml/artifacts /app/ml/artifacts/candidates /app/ml/artifacts/.promotion-backups
+	&& cp /app/ml/artifacts/validation/nsl-kdd-20260928/model.joblib /app/ml/artifacts/model.joblib \
+	&& cp /app/ml/artifacts/validation/nsl-kdd-20260928/metadata.json /app/ml/artifacts/metadata.json \
+	&& chown -R 1000:1000 /app/ml/artifacts
 
 EXPOSE 3000
 CMD ["node", "ml-drift-lens-backend/server.js"]

@@ -1,3 +1,5 @@
+const fs = require("node:fs");
+const path = require("node:path");
 const express = require("express");
 const cors = require("cors");
 const pool = require("./db");
@@ -14,9 +16,6 @@ function createApp({ databasePool = pool, env = process.env, emailService = defa
   app.use(cors(createCorsOptions(parseCorsOrigins(env.CORS_ORIGINS))));
   app.use(express.json({ limit: "16kb" }));
 
-  app.get("/", (req, res) => {
-    res.send("ModelWatch backend is alive 🚀");
-  });
 
   const diagnosticsRoutes = require("./routes/diagnosticsRoutes");
   app.use(diagnosticsRoutes.createDiagnosticsRouter({ databasePool, env, emailService }));
@@ -45,6 +44,35 @@ function createApp({ databasePool = pool, env = process.env, emailService = defa
 
   const retrainingRoutes = require("./routes/retrainingRoutes");
   app.use("/api/retraining", retrainingRoutes);
+
+  // Strict API 404 handler - never return HTML for unhandled API requests
+  app.use("/api", (req, res) => {
+    res.status(404).json({
+      success: false,
+      error: "API endpoint not found",
+      code: "not_found",
+    });
+  });
+
+  // Serve compiled React frontend if present
+  const staticPath = env.FRONTEND_STATIC_PATH || path.resolve(__dirname, "../ml-drift-lens-frontend/dist");
+  if (fs.existsSync(staticPath)) {
+    app.use(express.static(staticPath));
+    const indexHtml = path.join(staticPath, "index.html");
+    app.use((req, res, next) => {
+      if (req.method !== "GET" && req.method !== "HEAD") return next();
+      if (req.path.startsWith("/api")) return next();
+      if (fs.existsSync(indexHtml)) {
+        res.sendFile(indexHtml);
+      } else {
+        next();
+      }
+    });
+  } else {
+    app.get("/", (req, res) => {
+      res.send("ModelWatch backend is alive 🚀");
+    });
+  }
 
   return app;
 }

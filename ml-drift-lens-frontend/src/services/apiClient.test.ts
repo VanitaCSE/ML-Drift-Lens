@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { apiClient } from '../services/apiClient';
 
 // Mock fetch
-global.fetch = vi.fn();
+globalThis.fetch = vi.fn();
 
 describe('API Client', () => {
   beforeEach(() => {
@@ -20,14 +20,14 @@ describe('API Client', () => {
       training_timestamp: '2025-01-01T00:00:00Z',
     };
 
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => mockData,
     });
 
     const result = await apiClient.getModelInfo();
     expect(result).toEqual(mockData);
-    expect(global.fetch).toHaveBeenCalledWith('/api/model-info', expect.objectContaining({
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/model-info', expect.objectContaining({
       credentials: 'include',
     }));
   });
@@ -38,7 +38,7 @@ describe('API Client', () => {
       message: 'Service is running',
     };
 
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => mockData,
     });
@@ -54,7 +54,7 @@ describe('API Client', () => {
       message: 'Service is ready',
     };
 
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => mockData,
     });
@@ -76,7 +76,7 @@ describe('API Client', () => {
       stored_id: 1,
     };
 
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => mockData,
     });
@@ -89,7 +89,7 @@ describe('API Client', () => {
     });
 
     expect(result).toEqual(mockData);
-    expect(global.fetch).toHaveBeenCalledWith('/api/predictions', expect.objectContaining({
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/predictions', expect.objectContaining({
       credentials: 'include',
     }));
   });
@@ -100,18 +100,18 @@ describe('API Client', () => {
       user: { id: '1', email: 'user@example.test' },
       csrfToken: 'csrf-token',
     };
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => session,
     });
     expect(await apiClient.getCurrentSession()).toEqual(session);
 
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ success: true, user: session.user }),
     });
     await apiClient.login('user@example.test', 'test-password');
-    expect(global.fetch).toHaveBeenLastCalledWith('/api/auth/login', expect.objectContaining({
+    expect(globalThis.fetch).toHaveBeenLastCalledWith('/api/auth/login', expect.objectContaining({
       method: 'POST',
       credentials: 'include',
       body: JSON.stringify({ email: 'user@example.test', password: 'test-password' }),
@@ -120,7 +120,7 @@ describe('API Client', () => {
 
   it('sends the restored CSRF token with protected prediction writes', async () => {
     apiClient.setCsrfToken('session-csrf-token');
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ success: true }),
     });
@@ -131,7 +131,7 @@ describe('API Client', () => {
       preprocessing_version: '0.1.0',
       input_features: { duration: 100 },
     });
-    const [, options] = (global.fetch as any).mock.calls.at(-1);
+    const [, options] = (globalThis.fetch as any).mock.calls.at(-1);
     expect(options.credentials).toBe('include');
     expect(new Headers(options.headers).get('X-CSRF-Token')).toBe('session-csrf-token');
   });
@@ -152,7 +152,7 @@ describe('API Client', () => {
       },
     ];
 
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => mockData,
     });
@@ -162,7 +162,7 @@ describe('API Client', () => {
   });
 
   it('should handle API errors', async () => {
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: false,
       statusText: 'Not Found',
     });
@@ -171,7 +171,7 @@ describe('API Client', () => {
   });
 
   it('should preserve backend prediction validation details', async () => {
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: false,
       statusText: 'Bad Request',
       json: async () => ({
@@ -189,46 +189,46 @@ describe('API Client', () => {
   });
 
   it('submits password reset and email verification requests', async () => {
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ success: true, message: 'Reset sent' }),
     });
     const forgotRes = await apiClient.requestPasswordReset('user@example.com');
     expect(forgotRes.success).toBe(true);
-    expect(global.fetch).toHaveBeenCalledWith('/api/auth/forgot-password', expect.objectContaining({
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/auth/forgot-password', expect.objectContaining({
       method: 'POST',
       body: JSON.stringify({ email: 'user@example.com' }),
     }));
 
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ success: true, message: 'Password reset' }),
     });
     const resetRes = await apiClient.resetPassword('token-123', 'new-password-123');
     expect(resetRes.success).toBe(true);
-    expect(global.fetch).toHaveBeenCalledWith('/api/auth/reset-password', expect.objectContaining({
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/auth/reset-password', expect.objectContaining({
       method: 'POST',
       body: JSON.stringify({ token: 'token-123', password: 'new-password-123' }),
     }));
 
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ success: true, message: 'Email verified' }),
     });
     const verifyRes = await apiClient.verifyEmail('token-123');
     expect(verifyRes.success).toBe(true);
-    expect(global.fetch).toHaveBeenCalledWith('/api/auth/verify-email', expect.objectContaining({
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/auth/verify-email', expect.objectContaining({
       method: 'POST',
       body: JSON.stringify({ token: 'token-123' }),
     }));
 
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ success: true, message: 'Verification resent' }),
     });
     const resendRes = await apiClient.resendVerification('user@example.com');
     expect(resendRes.success).toBe(true);
-    expect(global.fetch).toHaveBeenCalledWith('/api/auth/resend-verification', expect.objectContaining({
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/auth/resend-verification', expect.objectContaining({
       method: 'POST',
       body: JSON.stringify({ email: 'user@example.com' }),
     }));

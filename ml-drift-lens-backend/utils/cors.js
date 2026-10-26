@@ -6,7 +6,7 @@ const DEFAULT_CORS_ORIGINS = [
 function parseCorsOrigins(value = process.env.CORS_ORIGINS) {
   const origins = (value || DEFAULT_CORS_ORIGINS.join(","))
     .split(",")
-    .map((origin) => origin.trim())
+    .map((origin) => origin.trim().replace(/\/+$/, ""))
     .filter(Boolean);
   return new Set(origins);
 }

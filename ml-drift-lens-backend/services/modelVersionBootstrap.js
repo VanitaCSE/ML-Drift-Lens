@@ -4,7 +4,11 @@ const pool = require("../db");
 
 function readProductionMetadata() {
   const projectRoot = path.resolve(__dirname, "../..");
-  const metadataPath = path.join(projectRoot, "ml", "artifacts", "metadata.json");
+  const metadataPath = process.env.MODEL_METADATA_PATH
+    ? (path.isAbsolute(process.env.MODEL_METADATA_PATH)
+        ? process.env.MODEL_METADATA_PATH
+        : path.resolve(projectRoot, process.env.MODEL_METADATA_PATH))
+    : path.join(projectRoot, "ml", "artifacts", "metadata.json");
   return JSON.parse(fs.readFileSync(metadataPath, "utf8"));
 }
 

@@ -7,9 +7,18 @@ venv/
 .env
 
 # Model artifacts and metadata
-ml/artifacts/
+ml/artifacts/*
+!ml/artifacts/validation/
+ml/artifacts/validation/*
+!ml/artifacts/validation/nsl-kdd-20260928/
+ml/artifacts/validation/nsl-kdd-20260928/*
+!ml/artifacts/validation/nsl-kdd-20260928/model.joblib
+!ml/artifacts/validation/nsl-kdd-20260928/metadata.json
+ml/artifacts/candidates/
+ml/artifacts/.promotion-backups/
 ml/data/raw/
 *.joblib
+!ml/artifacts/validation/nsl-kdd-20260928/model.joblib
 *.pkl
 *.pickle
 

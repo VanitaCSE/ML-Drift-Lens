@@ -7,6 +7,7 @@ services:
     dockerContext: .
     plan: starter
     healthCheckPath: /ready
+    dockerCommand: python -m ml.inference.main --host 0.0.0.0
     envVars:
       - key: PORT
         value: 8000
@@ -27,7 +28,7 @@ services:
     dockerContext: .
     plan: starter
     healthCheckPath: /api/health
-    preDeployCommand: npm run migrate
+    preDeployCommand: node ml-drift-lens-backend/scripts/applyAllMigrations.js
     envVars:
       - key: NODE_ENV
         value: production
@@ -60,19 +61,8 @@ services:
       - key: OPERATOR_AUTHORIZATION_POLICY
         value: unconfigured
 
-  # 3. React Frontend Static Site
-  - type: static
-    name: ml-drift-lens-frontend
-    rootDir: ml-drift-lens-frontend
-    buildCommand: npm ci && npm run build
-    staticPublishPath: dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    envVars:
-      - key: VITE_API_URL
-        sync: false
+  # Note: Frontend static assets are built and served directly by ml-drift-lens-backend
+  # under the unified single-origin architecture, eliminating cross-site cookie restrictions.
 
 databases:
   # Render Managed PostgreSQL Database
