@@ -180,13 +180,32 @@ exports.createPrediction = async (req, res) => {
 exports.updatePrediction = async (req, res) => {
   const { id } = req.params;
   const { actual_label } = req.body;
+
+  const parsedId = parseInt(id, 10);
+  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+    return res.status(400).json({ success: false, error: "Invalid prediction ID" });
+  }
+
+  const normalizedLabel = typeof actual_label === "string" ? actual_label.trim().toLowerCase() : "";
+  if (normalizedLabel !== "normal" && normalizedLabel !== "attack") {
+    return res.status(400).json({
+      success: false,
+      error: "Invalid actual_label. Must be 'normal' or 'attack'",
+    });
+  }
+
+  const verifierSource = req.authUser?.email || (req.session?.user && req.session.user.email) || "analyst-review";
+
   try {
     const result = await pool.query(
       `UPDATE predictions
-       SET actual_label = $1, updated_at = CURRENT_TIMESTAMP
+       SET actual_label = $1,
+           actual_label_source = COALESCE(actual_label_source, $3),
+           actual_label_verified_at = COALESCE(actual_label_verified_at, CURRENT_TIMESTAMP),
+           updated_at = CURRENT_TIMESTAMP
        WHERE id = $2
        RETURNING *`,
-      [actual_label, id],
+      [normalizedLabel, id, verifierSource],
     );
     if (result.rows.length === 0) {
       return res

@@ -400,6 +400,23 @@ export const apiClient = {
     return getJson<PredictionHistoryItem[]>(`/predictions${query ? `?${query}` : ''}`);
   },
 
+  /**
+   * Submit an analyst verified ground-truth label for a prediction
+   */
+  async labelPrediction(id: number, actualLabel: 'normal' | 'attack'): Promise<PredictionHistoryItem> {
+    const response = await apiFetch(`/predictions/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ actual_label: actualLabel }),
+    });
+    if (!response.ok) {
+      throw await responseError(response, 'Failed to update prediction label');
+    }
+    return response.json();
+  },
+
   async getMetrics(): Promise<MonitoringMetrics> {
     return getJson<MonitoringMetrics>('/metrics');
   },

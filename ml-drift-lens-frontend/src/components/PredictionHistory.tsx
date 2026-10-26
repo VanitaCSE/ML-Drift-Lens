@@ -10,6 +10,25 @@ export const PredictionHistory: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [hasNextPage, setHasNextPage] = useState(false);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const handleLabel = async (id: number, label: 'normal' | 'attack') => {
+    try {
+      setUpdatingId(id);
+      setActionError(null);
+      const updated = await apiClient.labelPrediction(id, label);
+      setPredictions((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, actual_label: updated.actual_label || label } : item))
+      );
+      setEditingId(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to update prediction label');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const fetchPredictions = async () => {
     try {
@@ -88,6 +107,12 @@ export const PredictionHistory: React.FC = () => {
 
         {!loading && !error && predictions.length > 0 && (
           <>
+            {actionError && (
+              <div className="error-panel" role="alert" style={{ marginBottom: '12px' }}>
+                <strong>Label update failed.</strong>
+                <span>{actionError}</span>
+              </div>
+            )}
             <div className="table-wrap">
               <table className="data-table" aria-label="Prediction history table">
                 <thead>
@@ -124,7 +149,57 @@ export const PredictionHistory: React.FC = () => {
                       <td className="numeric-cell">{(pred.confidence * 100).toFixed(2)}%</td>
                       <td className="numeric-cell">{pred.inference_latency_ms == null ? 'N/A' : `${pred.inference_latency_ms.toFixed(2)} ms`}</td>
                       <td><span className="mono-pill">{pred.model_version || 'N/A'}</span></td>
-                      <td>{pred.actual_label || 'Unlabeled'}</td>
+                      <td>
+                        {pred.actual_label && editingId !== pred.id ? (
+                          <div className="table-action-group">
+                            <span className={`status-badge ${pred.actual_label.toLowerCase()}`}>
+                              {pred.actual_label.toUpperCase()}
+                            </span>
+                            <button
+                              type="button"
+                              className="btn-table-change"
+                              onClick={() => setEditingId(pred.id)}
+                              title="Correct actual ground-truth label"
+                              aria-label={`Change label for prediction ${pred.id}`}
+                            >
+                              edit
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="table-action-group" role="group" aria-label={`Label prediction ${pred.id}`}>
+                            <button
+                              type="button"
+                              className="btn-table-action action-normal"
+                              disabled={updatingId === pred.id}
+                              onClick={() => void handleLabel(pred.id, 'normal')}
+                              title="Label as normal (benign traffic)"
+                              aria-label={`Label prediction ${pred.id} as normal`}
+                            >
+                              {updatingId === pred.id ? '...' : 'Normal'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-table-action action-attack"
+                              disabled={updatingId === pred.id}
+                              onClick={() => void handleLabel(pred.id, 'attack')}
+                              title="Label as attack (network intrusion)"
+                              aria-label={`Label prediction ${pred.id} as attack`}
+                            >
+                              {updatingId === pred.id ? '...' : 'Attack'}
+                            </button>
+                            {editingId === pred.id && (
+                              <button
+                                type="button"
+                                className="btn-table-change"
+                                onClick={() => setEditingId(null)}
+                                aria-label="Cancel editing"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
                       <td className="request-id">{pred.request_id}</td>
                     </tr>
                   ))}

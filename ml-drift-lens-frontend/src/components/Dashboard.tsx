@@ -149,17 +149,18 @@ function StatusBadge({ children, tone = 'neutral' }: StatusBadgeProps) {
   return <span className={`dashboard-status-badge badge-${tone}`}>{children}</span>;
 }
 
-function EmptyState({ message }: { message: string }) {
+function EmptyState({ message, description }: { message: string; description?: string }) {
   return (
     <div className="dashboard-empty-state" role="status">
       <span className="empty-state-icon">◌</span>
       <strong>{message}</strong>
+      {description && <p className="dashboard-empty-description" style={{ fontSize: '0.825rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>{description}</p>}
     </div>
   );
 }
 
-function DataTable<T>({ columns, rows, emptyMessage }: { columns: TableColumn<T>[]; rows: T[]; emptyMessage: string }) {
-  if (rows.length === 0) return <EmptyState message={emptyMessage} />;
+function DataTable<T>({ columns, rows, emptyMessage, emptyDescription }: { columns: TableColumn<T>[]; rows: T[]; emptyMessage: string; emptyDescription?: string }) {
+  if (rows.length === 0) return <EmptyState message={emptyMessage} description={emptyDescription} />;
 
   return (
     <div className="dashboard-table-wrap">
@@ -184,20 +185,36 @@ function DriftPanel({ history, loading, error, onRetry }: { history: DriftScore[
   const latestRecord = history
     .filter((item) => Number.isFinite(new Date(item.timestamp).getTime()))
     .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())[0];
+  const configuredThreshold = Number.isFinite(Number(latestRecord?.threshold))
+    ? Number(latestRecord?.threshold)
+    : 0.20;
   const latestHasScore = latestRecord?.status !== 'insufficient_data'
     && latestRecord !== undefined
-    && Number.isFinite(Number(latestRecord.score))
-    && Number.isFinite(Number(latestRecord.threshold));
-  const latestExceedsThreshold = latestHasScore && Number(latestRecord.score) > Number(latestRecord.threshold);
+    && Number.isFinite(Number(latestRecord.score));
+  const latestExceedsThreshold = latestHasScore && Number(latestRecord.score) > configuredThreshold;
+
+  const scoreDisplay = latestHasScore
+    ? formatNumber(Number(latestRecord.score))
+    : latestRecord?.status === 'insufficient_data'
+      ? 'Awaiting 100 samples'
+      : EMPTY_VALUE;
+
   return (
     <SectionCard title="Drift monitoring" eyebrow="Distribution health" className="drift-section">
       <SectionState loading={loading} error={error} onRetry={onRetry}>
         <div className="drift-summary-grid">
-          <div><span>Latest drift score</span><strong>{latestHasScore ? formatNumber(Number(latestRecord.score)) : EMPTY_VALUE}</strong></div>
-          <div><span>Drift threshold</span><strong>{latestHasScore ? formatNumber(Number(latestRecord.threshold)) : EMPTY_VALUE}</strong></div>
+          <div><span>Latest drift score</span><strong>{scoreDisplay}</strong></div>
+          <div><span>Drift threshold</span><strong>{formatNumber(configuredThreshold)}</strong></div>
           <div><span>Latest status</span><StatusBadge tone={latestRecord ? driftStatusTone(latestRecord.status, latestExceedsThreshold) : 'neutral'}>{latestRecord ? normalizeStatus(latestRecord.status) : 'No records'}</StatusBadge></div>
         </div>
-        {history.length === 0 ? <EmptyState message="No drift history available" /> : points.length === 0 ? <EmptyState message={history.some((record) => record.status === 'insufficient_data') ? 'Insufficient data to calculate a drift score' : 'No valid drift records available'} /> : (
+        {history.length === 0 ? (
+          <EmptyState message="No drift history available" />
+        ) : points.length === 0 ? (
+          <EmptyState
+            message={history.some((record) => record.status === 'insufficient_data') ? 'Insufficient data to calculate a drift score' : 'No valid drift records available'}
+            description={history.some((record) => record.status === 'insufficient_data') ? 'Population Stability Index (PSI) baseline requires 100 predictions to compute distribution drift. Configured threshold is 0.20.' : undefined}
+          />
+        ) : (
           <div className="drift-chart" aria-label="Drift history chart showing score and configured threshold over time">
             <h4 className="sr-only">Drift score and threshold over time</h4>
             <ResponsiveContainer width="100%" height={240}>
@@ -236,7 +253,7 @@ function AlertsPanel({ rows, loading, error, onRetry }: { rows: AlertRecord[]; l
           { key: 'model', label: 'Model ID', render: (row) => safeValue(row.model_id) },
           { key: 'status', label: 'Status', render: (row) => <StatusBadge tone={alertStatusTone(row.status)}>{normalizeStatus(row.status)}</StatusBadge> },
           { key: 'timestamp', label: 'Timestamp', render: (row) => formatTimestamp(row.timestamp) },
-        ]} rows={rows} emptyMessage="No alerts available" />
+        ]} rows={rows} emptyMessage="No alerts available" emptyDescription="Alerts trigger when drift score exceeds the 0.20 PSI threshold or an operational rule is violated." />
       </SectionState>
     </SectionCard>
   );
@@ -279,7 +296,7 @@ function RetrainingPanel({ rows, loading, error, onRetry }: { rows: RetrainingJo
           { key: 'incumbent-f1', label: 'Incumbent F1', render: (row) => formatPercentage(row.incumbent_f1) },
           { key: 'promotion-reason', label: 'Promotion detail', render: (row) => normalizeStatus(row.promotion_reason) },
           { key: 'reload', label: 'Reload status', render: (row) => <StatusBadge>{row.reload_status ? normalizeStatus(row.reload_status) : 'Not available'}</StatusBadge> },
-        ]} rows={rows} emptyMessage="No retraining jobs available" />
+        ]} rows={rows} emptyMessage="No retraining jobs available" emptyDescription="Retraining triggers upon sustained distribution drift (PSI > 0.20) or operator initiation." />
       </SectionState>
       {rows.some((row) => row.error_message) && (
         <ul className="dashboard-table-note">
@@ -292,7 +309,21 @@ function RetrainingPanel({ rows, loading, error, onRetry }: { rows: RetrainingJo
   );
 }
 
-function PredictionsPanel({ rows, loading, error, onRetry }: { rows: PredictionHistoryItem[]; loading: boolean; error?: string; onRetry: () => void }) {
+function PredictionsPanel({
+  rows,
+  loading,
+  error,
+  onRetry,
+  onLabelPrediction,
+  updatingPredictionId,
+}: {
+  rows: PredictionHistoryItem[];
+  loading: boolean;
+  error?: string;
+  onRetry: () => void;
+  onLabelPrediction?: (id: number, label: 'normal' | 'attack') => Promise<void>;
+  updatingPredictionId?: number | null;
+}) {
   return (
     <SectionCard title="Recent predictions" eyebrow="Inference activity">
       <SectionState loading={loading} error={error} onRetry={onRetry}>
@@ -318,7 +349,46 @@ function PredictionsPanel({ rows, loading, error, onRetry }: { rows: PredictionH
           },
           { key: 'confidence', label: 'Confidence', render: (row) => formatPercentage(row.confidence) },
           { key: 'latency', label: 'Inference latency (ms)', render: (row) => formatNumber(row.inference_latency_ms) },
-          { key: 'actual', label: 'Actual label', render: (row) => safeValue(row.actual_label) },
+          {
+            key: 'actual',
+            label: 'Actual label',
+            render: (row) => {
+              if (row.actual_label) {
+                return (
+                  <span className={`status-badge ${row.actual_label.toLowerCase()}`}>
+                    {row.actual_label.toUpperCase()}
+                  </span>
+                );
+              }
+              if (onLabelPrediction) {
+                return (
+                  <div className="table-action-group" role="group" aria-label={`Label prediction ${row.id}`}>
+                    <button
+                      type="button"
+                      className="btn-table-action action-normal"
+                      disabled={updatingPredictionId === row.id}
+                      onClick={() => void onLabelPrediction(row.id, 'normal')}
+                      title="Label as normal (benign traffic)"
+                      aria-label={`Label prediction ${row.id} as normal`}
+                    >
+                      {updatingPredictionId === row.id ? '...' : 'Normal'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-table-action action-attack"
+                      disabled={updatingPredictionId === row.id}
+                      onClick={() => void onLabelPrediction(row.id, 'attack')}
+                      title="Label as attack (network intrusion)"
+                      aria-label={`Label prediction ${row.id} as attack`}
+                    >
+                      {updatingPredictionId === row.id ? '...' : 'Attack'}
+                    </button>
+                  </div>
+                );
+              }
+              return safeValue(row.actual_label);
+            },
+          },
           { key: 'timestamp', label: 'Timestamp', render: (row) => formatTimestamp(row.timestamp) },
         ]} rows={rows} emptyMessage="No predictions available" />
         <p className="dashboard-table-note" style={{ marginTop: '10px', fontSize: '0.825rem', color: 'var(--color-text-muted)' }}>
@@ -336,6 +406,7 @@ export function Dashboard() {
   const [models, setModels] = useState<ModelVersionRecord[]>([]);
   const [retrainingJobs, setRetrainingJobs] = useState<RetrainingJobRecord[]>([]);
   const [predictions, setPredictions] = useState<PredictionHistoryItem[]>([]);
+  const [updatingPredictionId, setUpdatingPredictionId] = useState<number | null>(null);
   const [loading, setLoading] = useState<Record<DashboardSection, boolean>>({ metrics: true, drift: true, alerts: true, models: true, retraining: true, predictions: true });
   const [errors, setErrors] = useState<SectionErrors>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -414,6 +485,18 @@ export function Dashboard() {
   const visibleAlerts = activeModelId ? alerts.filter((row) => row.model_id === activeModelId) : alerts;
   const visiblePredictions = activeModelId ? predictions.filter((row) => row.model_id === activeModelId) : predictions;
 
+  const handleLabelPrediction = async (id: number, label: 'normal' | 'attack') => {
+    try {
+      setUpdatingPredictionId(id);
+      await apiClient.labelPrediction(id, label);
+      await loadDashboard(false);
+    } catch (err) {
+      console.error('Failed to submit ground-truth label:', err);
+    } finally {
+      setUpdatingPredictionId(null);
+    }
+  };
+
   return (
     <div className="dashboard-page">
       <div className="dashboard-page-heading">
@@ -456,7 +539,14 @@ export function Dashboard() {
         <AlertsPanel rows={visibleAlerts} loading={loading.alerts} error={errors.alerts} onRetry={retry} />
         <ModelsPanel rows={models} activeModel={activeModel} loading={loading.models} error={errors.models} onRetry={retry} />
         <RetrainingPanel rows={retrainingJobs} loading={loading.retraining} error={errors.retraining} onRetry={retry} />
-        <PredictionsPanel rows={visiblePredictions} loading={loading.predictions} error={errors.predictions} onRetry={retry} />
+        <PredictionsPanel
+          rows={visiblePredictions}
+          loading={loading.predictions}
+          error={errors.predictions}
+          onRetry={retry}
+          onLabelPrediction={handleLabelPrediction}
+          updatingPredictionId={updatingPredictionId}
+        />
       </div>
     </div>
   );

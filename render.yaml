@@ -62,6 +62,10 @@ services:
         sync: false
       - key: OPERATOR_AUTHORIZATION_POLICY
         value: unconfigured
+      - key: APP_PUBLIC_URL
+        value: https://ml-drift-lens-backend.onrender.com
+      - key: EMAIL_PROVIDER
+        value: console
 
   # Note: Frontend static assets are built and served directly by ml-drift-lens-backend
   # under the unified single-origin architecture, eliminating cross-site cookie restrictions.

@@ -36,7 +36,6 @@ router.put(
   requireBrowserOrigin,
   requireUserSession,
   requireCsrfToken,
-  blockUnapprovedMutation,
   predictionsController.updatePrediction,
 );
 router.delete(

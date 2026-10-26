@@ -24,7 +24,7 @@ describe('DriftMonitoring', () => {
 
     expect(await screen.findByText('Significant Drift')).toBeTruthy();
     expect(screen.getByText('Insufficient Data')).toBeTruthy();
-    expect(screen.getAllByText('Not available')).toHaveLength(2);
+    expect(screen.getByText('Awaiting min 100 samples')).toBeTruthy();
     expect(screen.getByRole('table', { name: 'Persisted drift history' })).toBeTruthy();
   });
 

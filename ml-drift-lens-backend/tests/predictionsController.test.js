@@ -157,7 +157,7 @@ test("updates actual_label in PostgreSQL", async () => {
 
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.body, row);
-  assert.deepEqual(queryValues, ["attack", "7"]);
+  assert.deepEqual(queryValues, ["attack", "7", "analyst-review"]);
 });
 
 test("deletes a prediction from PostgreSQL", async () => {
@@ -174,4 +174,14 @@ test("deletes a prediction from PostgreSQL", async () => {
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.body, { success: true, deleted: row });
   assert.deepEqual(queryValues, ["7"]);
+});
+test("rejects invalid actual_label values", async () => {
+  const response = responseRecorder();
+  await predictionsController.updatePrediction(
+    { params: { id: "7" }, body: { actual_label: "unsupported-label" } },
+    response,
+  );
+
+  assert.equal(response.statusCode, 400);
+  assert.match(response.body.error, /Invalid actual_label/);
 });

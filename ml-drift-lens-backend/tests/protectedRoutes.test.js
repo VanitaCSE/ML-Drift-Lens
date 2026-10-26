@@ -9,7 +9,6 @@ const routeModules = [
     ["DELETE", "/:id"],
   ]],
   ["../routes/predictionsRoutes", [
-    ["PUT", "/:id"],
     ["DELETE", "/:id"],
   ]],
   ["../routes/modelsRoutes", [
@@ -99,6 +98,18 @@ test("prediction creation requires session, origin, and CSRF checks before rate 
   const router = require("../routes/predictionsRoutes");
   const layer = router.stack.find((entry) => entry.route?.path === "/" && entry.route.methods.post);
   assert.ok(layer, "POST / is registered");
+  assert.deepEqual(layer.route.stack.slice(0, 3).map(({ handle }) => handle.name), [
+    "requireBrowserOrigin",
+    "requireUserSession",
+    "requireCsrfToken",
+  ]);
+  assert.equal(layer.route.stack.some(({ handle }) => handle.name === "blockUnapprovedMutation"), false);
+});
+
+test("prediction labeling requires session, origin, and CSRF checks without blockUnapprovedMutation", () => {
+  const router = require("../routes/predictionsRoutes");
+  const layer = router.stack.find((entry) => entry.route?.path === "/:id" && entry.route.methods.put);
+  assert.ok(layer, "PUT /:id is registered");
   assert.deepEqual(layer.route.stack.slice(0, 3).map(({ handle }) => handle.name), [
     "requireBrowserOrigin",
     "requireUserSession",

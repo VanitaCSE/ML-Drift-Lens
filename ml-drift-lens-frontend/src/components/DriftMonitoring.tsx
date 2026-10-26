@@ -5,8 +5,14 @@ import type { DriftScore } from '../services/apiClient';
 const PAGE_SIZE = 20;
 
 function formatScore(value: number, status: string) {
-  if (status === 'insufficient_data' || !Number.isFinite(value)) return 'Not available';
+  if (status === 'insufficient_data') return 'Awaiting min 100 samples';
+  if (!Number.isFinite(value)) return 'Not available';
   return value.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+function formatThreshold(value: number) {
+  if (Number.isFinite(value)) return value.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  return '0.2000';
 }
 
 function formatStatus(status: string) {
@@ -102,7 +108,7 @@ export function DriftMonitoring() {
                     <td>{record.model_id}</td>
                     <td>{record.metric_type}</td>
                     <td>{formatScore(record.score, record.status)}</td>
-                    <td>{formatScore(record.threshold, record.status)}</td>
+                    <td>{formatThreshold(record.threshold)}</td>
                     <td>{formatStatus(record.status)}</td>
                   </tr>
                 ))}

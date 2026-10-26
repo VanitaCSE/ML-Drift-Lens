@@ -233,4 +233,33 @@ describe('API Client', () => {
       body: JSON.stringify({ email: 'user@example.com' }),
     }));
   });
+  it('should label a prediction with ground truth', async () => {
+    const mockData = {
+      id: 5,
+      model_id: 'nsl-kdd-baseline',
+      model_version: '0.1.0',
+      preprocessing_version: '0.1.0',
+      prediction: 'normal',
+      prediction_class: 0,
+      confidence: 0.95,
+      request_id: 'req-5',
+      timestamp: '2026-10-26T12:00:00Z',
+      actual_label: 'normal',
+    };
+
+    (globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockData,
+    });
+
+    const result = await apiClient.labelPrediction(5, 'normal');
+    expect(result).toEqual(mockData);
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/predictions/5', expect.objectContaining({
+      method: 'PUT',
+      credentials: 'include',
+      body: JSON.stringify({ actual_label: 'normal' }),
+    }));
+    const [, options] = (globalThis.fetch as any).mock.calls.at(-1);
+    expect(new Headers(options.headers).get('Content-Type')).toBe('application/json');
+  });
 });
