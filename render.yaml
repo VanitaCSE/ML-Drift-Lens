@@ -68,5 +68,5 @@ databases:
   # Render Managed PostgreSQL Database
   - name: ml-drift-lens-db
     databaseName: ml_drift_lens
-    user: postgres
+    user: ml_drift_lens_user
     plan: free
