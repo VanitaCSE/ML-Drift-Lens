@@ -140,10 +140,10 @@ function getValidDriftPoints(history: DriftScore[]) {
 function MetricCard({ label, value, note, tone = 'neutral', badge, badgeTone = 'production' }: MetricCardProps) {
   return (
     <article className={`dashboard-metric-card metric-${tone}`}>
-      <div className="dashboard-card-top-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="dashboard-card-top-row">
         <div className="dashboard-card-kicker">{label}</div>
         {badge && (
-          <span className={`data-source-badge badge-${badgeTone}`} style={{ fontSize: '0.625rem', padding: '1px 6px' }}>
+          <span className={`data-source-badge badge-${badgeTone} badge-sm`}>
             {badge}
           </span>
         )}
@@ -905,7 +905,7 @@ export function Dashboard() {
             A high-fidelity monitoring view uniting live production inference, official NSL-KDD benchmarks, and drift lifecycle tracking.
           </p>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
+        <div className="dashboard-header-controls">
           <div className="dashboard-mode-toggle" role="group" aria-label="Environment data mode">
             <button
               type="button"
@@ -914,8 +914,8 @@ export function Dashboard() {
               aria-pressed={dataMode === 'production'}
               title="Show live production data from PostgreSQL"
             >
-              <span className="data-source-badge badge-production" style={{ padding: '0 4px', fontSize: '0.625rem' }}>Live</span>
-              Production
+              <span className="data-source-badge badge-production badge-sm">Live</span>
+              <span>Production</span>
             </button>
             <button
               type="button"
@@ -924,8 +924,8 @@ export function Dashboard() {
               aria-pressed={dataMode === 'demo'}
               title="Switch to demonstration mode with benchmark metrics and simulated drift"
             >
-              <span className="data-source-badge badge-demo" style={{ padding: '0 4px', fontSize: '0.625rem' }}>Demo</span>
-              Benchmark & Simulation
+              <span className="data-source-badge badge-demo badge-sm">Demo</span>
+              <span>Benchmark &amp; Simulation</span>
             </button>
           </div>
 
@@ -948,10 +948,13 @@ export function Dashboard() {
 
       {isDemo && (
         <div className="demo-banner-alert" role="status">
-          <div>
-            <strong>🔶 Demonstration Environment Active:</strong> Displaying canonical NSL-KDD test holdout evaluation (22,544 rows) and simulated drift lifecycle. No production records or database tables are modified.
+          <div className="demo-banner-content">
+            <span className="demo-banner-icon" aria-hidden="true">🔶</span>
+            <div>
+              <strong>Demonstration Environment Active:</strong> Displaying canonical NSL-KDD test holdout evaluation (22,544 rows) and simulated drift lifecycle. No production records or database tables are modified.
+            </div>
           </div>
-          <button className="btn btn-secondary btn-sm" type="button" onClick={() => setDataMode('production')}>
+          <button className="btn btn-secondary btn-sm demo-banner-action" type="button" onClick={() => setDataMode('production')}>
             Back to Live Production
           </button>
         </div>
