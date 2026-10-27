@@ -70,3 +70,38 @@ test("readiness reports unavailable state without leaking dependency errors", as
     message: "Failed to check ML service readiness",
   });
 });
+
+test("getModelInfo proxies model metadata from ML service client", async () => {
+  const controller = createHealthController({
+    serviceClient: {
+      getModelInfo: async () => ({
+        model_name: "nsl-kdd-baseline",
+        model_version: "nsl-kdd-validation-20260928",
+        num_features: 41,
+      }),
+    },
+  });
+  const response = responseRecorder();
+  await controller.getModelInfo({}, response);
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.success, true);
+  assert.equal(response.body.model.model_version, "nsl-kdd-validation-20260928");
+});
+
+test("getModelInfo returns client error status and message when ML service is unavailable", async () => {
+  const controller = createHealthController({
+    serviceClient: {
+      getModelInfo: async () => {
+        const error = new Error("Inference service waking from sleep");
+        error.statusCode = 503;
+        throw error;
+      },
+    },
+  });
+  const response = responseRecorder();
+  await controller.getModelInfo({}, response);
+  assert.equal(response.statusCode, 503);
+  assert.equal(response.body.success, false);
+  assert.equal(response.body.error, "Failed to retrieve model information");
+  assert.equal(response.body.details, "Inference service waking from sleep");
+});

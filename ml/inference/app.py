@@ -7,7 +7,7 @@ import logging
 import uuid
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, validator
 
 from .config import InferenceConfig
@@ -103,6 +103,8 @@ def create_app(config: InferenceConfig, model_loader: ModelLoader) -> FastAPI:
     @app.on_event("startup")
     async def startup_event() -> None:
         """Load model on startup."""
+        app.state.is_loading = True
+        app.state.startup_error = None
         try:
             logger.info("Loading model on startup...")
             model_loader.load()
@@ -114,7 +116,12 @@ def create_app(config: InferenceConfig, model_loader: ModelLoader) -> FastAPI:
 
         except ModelArtifactError as e:
             logger.error(f"Failed to load model: {e}")
-            raise
+            app.state.startup_error = str(e)
+        except Exception as e:
+            logger.error(f"Unexpected error loading model: {e}")
+            app.state.startup_error = str(e)
+        finally:
+            app.state.is_loading = False
 
     @app.get("/health", response_model=HealthResponse)
     async def health() -> HealthResponse:
@@ -128,14 +135,38 @@ def create_app(config: InferenceConfig, model_loader: ModelLoader) -> FastAPI:
         )
 
     @app.get("/ready", response_model=ReadyResponse)
-    async def ready() -> ReadyResponse:
+    async def ready(response: Response) -> ReadyResponse:
         """Readiness check endpoint - model is loaded and ready."""
         model_ready = model_loader.is_loaded()
         metadata = model_loader.metadata if model_ready else {}
+        is_loading = getattr(app.state, "is_loading", False)
+        startup_error = getattr(app.state, "startup_error", None)
+
+        if not model_ready:
+            response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+            if is_loading:
+                message = "Model initialization in progress"
+                reload_status = "initializing"
+            elif startup_error:
+                message = f"Model failed to load: {startup_error}"
+                reload_status = "failed"
+            else:
+                message = "Model not yet loaded"
+                reload_status = "not_ready"
+
+            return ReadyResponse(
+                ready=False,
+                model_loaded=False,
+                message=message,
+                model_id=None,
+                model_version=None,
+                reload_status=reload_status,
+            )
+
         return ReadyResponse(
-            ready=model_ready,
-            model_loaded=model_ready,
-            message="Model is ready for inference" if model_ready else "Model not yet loaded",
+            ready=True,
+            model_loaded=True,
+            message="Model is ready for inference",
             model_id=(metadata.get("model_id") or metadata.get("model_name") or None),
             model_version=active_model_version(metadata),
             reload_status="stable",
@@ -248,7 +279,15 @@ def create_app(config: InferenceConfig, model_loader: ModelLoader) -> FastAPI:
     async def model_info() -> dict[str, Any]:
         """Get loaded model metadata and the persisted evaluation metrics."""
         if not model_loader.is_loaded():
-            raise HTTPException(status_code=503, detail="Model not loaded")
+            startup_error = getattr(app.state, "startup_error", None)
+            is_loading = getattr(app.state, "is_loading", False)
+            if is_loading:
+                detail = "Model initialization in progress"
+            elif startup_error:
+                detail = f"Model failed to load: {startup_error}"
+            else:
+                detail = "Model not loaded"
+            raise HTTPException(status_code=503, detail=detail)
 
         metadata = model_loader.metadata
         validation_metrics = metadata.get("validation_metrics") or {}

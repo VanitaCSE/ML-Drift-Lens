@@ -367,3 +367,60 @@ def test_failed_reload_keeps_predictor_and_model_metadata(model_loader: ModelLoa
     assert app.state.predictor is old_predictor
     assert model_loader.model is old_model
     assert model_loader.metadata is old_metadata
+
+
+def test_ready_endpoint_model_not_loaded_returns_503(config: InferenceConfig) -> None:
+    """Test GET /ready returns HTTP 503 when the model is not loaded."""
+    unloaded_loader = ModelLoader(Path("does_not_exist.joblib"))
+    app = create_app(config, unloaded_loader)
+    client = TestClient(app)
+
+    response = client.get("/ready")
+    assert response.status_code == 503
+    data = response.json()
+    assert data["ready"] is False
+    assert data["model_loaded"] is False
+    assert "not yet loaded" in data["message"].lower()
+
+
+def test_ready_endpoint_initialization_in_progress_returns_503(config: InferenceConfig) -> None:
+    """Test GET /ready returns HTTP 503 while initialization is running."""
+    unloaded_loader = ModelLoader(Path("does_not_exist.joblib"))
+    app = create_app(config, unloaded_loader)
+    app.state.is_loading = True
+    client = TestClient(app)
+
+    response = client.get("/ready")
+    assert response.status_code == 503
+    data = response.json()
+    assert data["ready"] is False
+    assert data["reload_status"] == "initializing"
+    assert "progress" in data["message"].lower()
+
+
+def test_ready_endpoint_startup_error_returns_503(config: InferenceConfig) -> None:
+    """Test GET /ready returns HTTP 503 with exact error if startup failed."""
+    unloaded_loader = ModelLoader(Path("does_not_exist.joblib"))
+    app = create_app(config, unloaded_loader)
+    app.state.startup_error = "Simulated corruption in model artifact"
+    client = TestClient(app)
+
+    response = client.get("/ready")
+    assert response.status_code == 503
+    data = response.json()
+    assert data["ready"] is False
+    assert data["reload_status"] == "failed"
+    assert "Simulated corruption in model artifact" in data["message"]
+
+
+def test_model_info_when_not_loaded_returns_503(config: InferenceConfig) -> None:
+    """Test GET /model/info returns HTTP 503 when model is not loaded."""
+    unloaded_loader = ModelLoader(Path("does_not_exist.joblib"))
+    app = create_app(config, unloaded_loader)
+    client = TestClient(app)
+
+    response = client.get("/model/info")
+    assert response.status_code == 503
+    data = response.json()
+    assert "detail" in data
+    assert "not loaded" in data["detail"].lower()

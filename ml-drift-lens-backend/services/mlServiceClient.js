@@ -63,8 +63,10 @@ function parseMLServiceURL(urlString = getMLServiceURL()) {
  * @returns {Promise<object>} Parsed response body
  */
 function makeMLServiceRequest(method, path, data = null, retryAttempt = 0) {
-  const maxGatewayRetries = 5;
-  const gatewayDelays = [1500, 2500, 4000, 6000, 8000];
+  const isIdempotent = method === "GET" || method === "HEAD";
+  // Idempotent reads retry up to 5 times spanning cold-starts; state-modifying requests do not retry on timeout
+  const maxGatewayRetries = isIdempotent ? 5 : 1;
+  const gatewayDelays = [2000, 3500, 6000, 9000, 12000];
 
   return new Promise((resolve, reject) => {
     const candidateUrls = buildServiceURLCandidates();
@@ -144,7 +146,8 @@ function makeMLServiceRequest(method, path, data = null, retryAttempt = 0) {
           return;
         }
 
-        if (retryAttempt < maxGatewayRetries) {
+        // Only retry timeouts for idempotent read requests to avoid duplicate predictions
+        if (isIdempotent && retryAttempt < maxGatewayRetries) {
           const delayMs = gatewayDelays[retryAttempt] || 5000;
           setTimeout(() => {
             makeMLServiceRequest(method, path, data, retryAttempt + 1)
@@ -170,7 +173,8 @@ function makeMLServiceRequest(method, path, data = null, retryAttempt = 0) {
           return;
         }
 
-        if (retryAttempt < maxGatewayRetries) {
+        // Retry connection errors for idempotent requests (container waking up)
+        if (isIdempotent && retryAttempt < maxGatewayRetries) {
           const delayMs = gatewayDelays[retryAttempt] || 5000;
           setTimeout(() => {
             makeMLServiceRequest(method, path, data, retryAttempt + 1)

@@ -16,7 +16,8 @@ RUN pip install --no-cache-dir --only-binary=:all: --prefer-binary \
 COPY ml /app/ml
 
 # Deployment artifact staging: populate the approved baseline as the active production model
-RUN cp /app/ml/artifacts/validation/nsl-kdd-20260928/model.joblib /app/ml/artifacts/model.joblib \
+RUN mkdir -p /app/ml/artifacts/candidates /app/ml/artifacts/.promotion-backups \
+ && cp /app/ml/artifacts/validation/nsl-kdd-20260928/model.joblib /app/ml/artifacts/model.joblib \
  && cp /app/ml/artifacts/validation/nsl-kdd-20260928/metadata.json /app/ml/artifacts/metadata.json
 
 EXPOSE 8000 5000

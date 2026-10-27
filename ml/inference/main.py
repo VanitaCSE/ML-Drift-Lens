@@ -52,11 +52,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ModelWatch Inference Service")
     parser.add_argument("--host", default=os.getenv("INFERENCE_HOST", "0.0.0.0"), help="Server host")
     parser.add_argument("--port", type=int, default=int(os.getenv("PORT", os.getenv("INFERENCE_PORT", "8000"))), help="Server port")
-    parser.add_argument("--log-level", default="INFO", help="Log level")
+    parser.add_argument("--log-level", default=os.getenv("LOG_LEVEL", "INFO"), help="Log level")
     parser.add_argument(
         "--model-path",
         type=Path,
-        default=Path("ml/artifacts/model.joblib"),
+        default=Path(os.getenv("MODEL_ARTIFACT_PATH", "ml/artifacts/model.joblib")),
         help="Path to model artifact",
     )
     args = parser.parse_args()
